@@ -33,36 +33,36 @@ class LoginScreen extends StatelessWidget {
               // while fading smoothly into deep starry black behind the login card on the right
               Positioned.fill(
                 child: Container(
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                       colors: [
-                        Colors.black.withValues(alpha: 0.15),
-                        Colors.black.withValues(alpha: 0.10),
-                        Colors.black.withValues(alpha: 0.50),
-                        Colors.black.withValues(alpha: 0.92),
-                        Colors.black.withValues(alpha: 0.98),
+                        Colors.transparent,
+                        Colors.transparent,
+                        Color(0x59000000), // 35% black
+                        Color(0xD9000000), // 85% black
+                        Color(0xFA000000), // 98% black
                       ],
-                      stops: const [0.0, 0.40, 0.65, 0.85, 1.0],
+                      stops: [0.0, 0.45, 0.65, 0.85, 1.0],
                     ),
                   ),
                 ),
               ),
 
-              // 3. Subtle ambient cyan glow halo positioned behind the login card
+              // 3. Subtle ambient cyan glow halo positioned directly behind the login card
               if (width >= 960)
                 Positioned(
-                  top: height * 0.12,
-                  right: width * 0.10,
+                  top: (height - 380) / 2 + 14,
+                  left: width * 0.57 + ((width * 0.43) - 380) / 2,
                   child: Container(
-                    width: 420,
-                    height: 420,
+                    width: 380,
+                    height: 380,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: RadialGradient(
                         colors: [
-                          AppTheme.cyanAccent.withValues(alpha: 0.14),
+                          AppTheme.cyanAccent.withValues(alpha: 0.16),
                           Colors.transparent,
                         ],
                       ),
@@ -70,7 +70,7 @@ class LoginScreen extends StatelessWidget {
                   ),
                 ),
 
-              // 4. Foreground Sections (Desktop 50:50 Split or Responsive Mobile/Tablet)
+              // 4. Foreground Sections (Desktop Split or Responsive Mobile/Tablet)
               Positioned.fill(
                 child: width >= 960
                     ? _buildDesktopLayout(context, width, height)
@@ -85,27 +85,28 @@ class LoginScreen extends StatelessWidget {
     );
   }
 
-  // Exact 50:50 Desktop Split Layout matching reference image
+  // Exact 57:43 Desktop Split Layout matching reference image (center_x = 803 at 1024 width)
   Widget _buildDesktopLayout(BuildContext context, double width, double height) {
     return Row(
       children: [
-        // LEFT SECTION — BRANDING & LUXURY HERO (50% Width)
+        // LEFT SECTION — BRANDING & LUXURY HERO (57% Width)
         Expanded(
-          flex: 1,
+          flex: 57,
           child: TravelHeroSection(
             showBranding: true,
             screenWidth: width,
+            screenHeight: height,
           ),
         ),
 
-        // RIGHT SECTION — CENTERED LOGIN CARD (50% Width)
+        // RIGHT SECTION — CENTERED LOGIN CARD (43% Width)
         Expanded(
-          flex: 1,
+          flex: 43,
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              padding: const EdgeInsets.only(left: 16, right: 16, top: 26, bottom: 12),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 380),
+                constraints: const BoxConstraints(maxWidth: 330),
                 child: const LoginFormCard(),
               ),
             ),

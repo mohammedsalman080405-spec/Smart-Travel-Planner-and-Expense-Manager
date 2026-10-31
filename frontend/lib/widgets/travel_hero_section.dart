@@ -6,21 +6,26 @@ class TravelHeroSection extends StatelessWidget {
   final bool showBranding;
   final bool renderBackground;
   final double screenWidth;
+  final double screenHeight;
 
   const TravelHeroSection({
     super.key,
     this.showBranding = true,
     this.renderBackground = false,
     this.screenWidth = 1024,
+    this.screenHeight = 595,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Dynamic left indentation:
+    // Exact left indentation matching reference image (x = 138 at 1024 width):
     // Pushes headline and copy into the open evening sky above the pool,
-    // clear of the left villa architecture, exactly matching the reference image
-    final isWideDesktop = screenWidth >= 1200;
-    final headlineLeftPadding = isWideDesktop ? 120.0 : (screenWidth >= 960 ? 96.0 : 36.0);
+    // completely clear of the left villa architecture and pool furniture
+    final isDesktop = screenWidth >= 960;
+    final headlineLeftPadding = isDesktop ? 136.0 : (screenWidth >= 650 ? 48.0 : 24.0);
+    final topGap = isDesktop
+        ? (screenHeight >= 750 ? 84.0 : 68.0)
+        : 28.0;
 
     return SafeArea(
       child: Column(
@@ -29,7 +34,7 @@ class TravelHeroSection extends StatelessWidget {
           // 1. Top-Left Branding
           if (showBranding)
             Padding(
-              padding: const EdgeInsets.only(left: 36, top: 28),
+              padding: const EdgeInsets.only(left: 44, top: 22),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -94,7 +99,7 @@ class TravelHeroSection extends StatelessWidget {
               ),
             ),
 
-          const Spacer(flex: 3),
+          SizedBox(height: topGap),
 
           // 2. Middle-Left Hero Headline & Copy
           Padding(
@@ -107,7 +112,7 @@ class TravelHeroSection extends StatelessWidget {
                   'Explore',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 52,
+                    fontSize: 50,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -1.0,
                     height: 1.05,
@@ -117,7 +122,7 @@ class TravelHeroSection extends StatelessWidget {
                   'the World',
                   style: TextStyle(
                     color: AppTheme.cyanAccent,
-                    fontSize: 52,
+                    fontSize: 50,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -1.0,
                     height: 1.05,
@@ -129,7 +134,7 @@ class TravelHeroSection extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
                 // Sub-headline: Plan Smarter • Travel Better • Spend Wisely
                 Wrap(
@@ -141,8 +146,8 @@ class TravelHeroSection extends StatelessWidget {
                       'Plan Smarter',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w700,
                         letterSpacing: 0.2,
                       ),
                     ),
@@ -150,7 +155,7 @@ class TravelHeroSection extends StatelessWidget {
                       '•',
                       style: TextStyle(
                         color: AppTheme.cyanAccent,
-                        fontSize: 15,
+                        fontSize: 14.0,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -158,8 +163,8 @@ class TravelHeroSection extends StatelessWidget {
                       'Travel Better',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w700,
                         letterSpacing: 0.2,
                       ),
                     ),
@@ -167,7 +172,7 @@ class TravelHeroSection extends StatelessWidget {
                       '•',
                       style: TextStyle(
                         color: AppTheme.cyanAccent,
-                        fontSize: 15,
+                        fontSize: 14.0,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -175,8 +180,8 @@ class TravelHeroSection extends StatelessWidget {
                       'Spend Wisely',
                       style: TextStyle(
                         color: AppTheme.cyanAccent,
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w700,
                         letterSpacing: 0.2,
                       ),
                     ),
@@ -186,13 +191,13 @@ class TravelHeroSection extends StatelessWidget {
 
                 // Description
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
+                  constraints: const BoxConstraints(maxWidth: 400),
                   child: Text(
                     'Discover amazing destinations, explore top hotels, create your itinerary and manage your travel expenses all in one place.',
                     style: TextStyle(
                       color: const Color(0xFFB0BDCF),
-                      fontSize: 13.5,
-                      height: 1.55,
+                      fontSize: 13.0,
+                      height: 1.5,
                       fontWeight: FontWeight.w400,
                       letterSpacing: 0.15,
                     ),
@@ -202,7 +207,7 @@ class TravelHeroSection extends StatelessWidget {
             ),
           ),
 
-          const Spacer(flex: 4),
+          const Spacer(),
         ],
       ),
     );

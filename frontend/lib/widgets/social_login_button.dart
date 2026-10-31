@@ -6,11 +6,13 @@ enum SocialLoginType { google, apple }
 class SocialLoginButton extends StatefulWidget {
   final SocialLoginType type;
   final VoidCallback onPressed;
+  final double height;
 
   const SocialLoginButton({
     super.key,
     required this.type,
     required this.onPressed,
+    this.height = 42.0,
   });
 
   @override
@@ -34,12 +36,12 @@ class _SocialLoginButtonState extends State<SocialLoginButton> {
           onTap: widget.onPressed,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            height: 48,
+            height: widget.height,
             decoration: BoxDecoration(
               color: _isHovered
                   ? const Color(0xFF181F2C)
                   : const Color(0xFF0F1420).withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: _isHovered
                     ? AppTheme.cyanAccent.withValues(alpha: 0.6)

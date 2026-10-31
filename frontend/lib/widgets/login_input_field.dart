@@ -10,6 +10,7 @@ class LoginInputField extends StatefulWidget {
   final String? Function(String?)? validator;
   final void Function(String)? onFieldSubmitted;
   final FocusNode? focusNode;
+  final double height;
 
   const LoginInputField({
     super.key,
@@ -21,6 +22,7 @@ class LoginInputField extends StatefulWidget {
     this.validator,
     this.onFieldSubmitted,
     this.focusNode,
+    this.height = 42.0,
   });
 
   @override
@@ -69,7 +71,7 @@ class _LoginInputFieldState extends State<LoginInputField> {
           children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 180),
-              height: 48,
+              height: widget.height,
               decoration: BoxDecoration(
                 color: const Color(0xFF0A0F19).withValues(alpha: 0.90),
                 borderRadius: BorderRadius.circular(10),
@@ -95,14 +97,14 @@ class _LoginInputFieldState extends State<LoginInputField> {
                 children: [
                   // Centered Prefix Icon
                   SizedBox(
-                    width: 44,
-                    height: 48,
+                    width: 40,
+                    height: widget.height,
                     child: Icon(
                       widget.prefixIcon,
                       color: _isFocused
                           ? AppTheme.cyanAccent
                           : const Color(0xFF7A8B9E),
-                      size: 19,
+                      size: 18,
                     ),
                   ),
 
@@ -114,6 +116,7 @@ class _LoginInputFieldState extends State<LoginInputField> {
                       obscureText: widget.isPassword ? _obscureText : false,
                       keyboardType: widget.keyboardType,
                       onSubmitted: widget.onFieldSubmitted,
+                      textAlignVertical: TextAlignVertical.center,
                       onChanged: (val) {
                         if (state.hasError) {
                           state.didChange(val);
@@ -121,7 +124,7 @@ class _LoginInputFieldState extends State<LoginInputField> {
                       },
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 14.0,
+                        fontSize: 13.5,
                         fontWeight: FontWeight.w500,
                       ),
                       cursorColor: AppTheme.cyanAccent,
@@ -129,12 +132,12 @@ class _LoginInputFieldState extends State<LoginInputField> {
                         hintText: widget.hintText,
                         hintStyle: TextStyle(
                           color: const Color(0xFF758597).withValues(alpha: 0.9),
-                          fontSize: 13.5,
+                          fontSize: 13.0,
                           fontWeight: FontWeight.w400,
                         ),
                         border: InputBorder.none,
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                     ),
                   ),
@@ -142,8 +145,8 @@ class _LoginInputFieldState extends State<LoginInputField> {
                   // Password Visibility Toggle Icon (if applicable)
                   if (widget.isPassword)
                     SizedBox(
-                      width: 44,
-                      height: 48,
+                      width: 40,
+                      height: widget.height,
                       child: IconButton(
                         icon: Icon(
                           _obscureText
@@ -152,18 +155,16 @@ class _LoginInputFieldState extends State<LoginInputField> {
                           color: _isFocused
                               ? AppTheme.cyanAccent
                               : const Color(0xFF7A8B9E),
-                          size: 19,
+                          size: 18,
                         ),
-                        splashRadius: 18,
+                        splashRadius: 16,
                         onPressed: () {
                           setState(() {
                             _obscureText = !_obscureText;
                           });
                         },
                       ),
-                    )
-                  else
-                    const SizedBox(width: 8),
+                    ),
                 ],
               ),
             ),
