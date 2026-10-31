@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
-import '../../models/hotel.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/globe_provider.dart';
 import '../../providers/hotel_provider.dart';
@@ -95,8 +95,9 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                       top: 20,
                       left: 20,
                       right: 20,
-                      child: LayoutBuilder(
-                        builder: (context, topBarConstraints) {
+                      child: PointerInterceptor(
+                        child: LayoutBuilder(
+                          builder: (context, topBarConstraints) {
                           final isCompact = topBarConstraints.maxWidth < 780;
 
                           return Row(
@@ -245,13 +246,15 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                         },
                       ),
                     ),
+                  ),
 
-                    // Destination Search Bar (Prominent center-top)
-                    Positioned(
-                      top: 96,
-                      left: 0,
-                      right: 0,
-                      child: Center(
+                  // Destination Search Bar (Prominent center-top)
+                  Positioned(
+                    top: 96,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: PointerInterceptor(
                         child: DestinationSearchBar(
                           onDestinationSelected: (query, lat, lng) {
                             // Globe updates automatically via Provider
@@ -259,6 +262,7 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                         ),
                       ),
                     ),
+                  ),
 
                     // Loading indicator overlay during hotel search
                     if (hotelProvider.isLoading)
@@ -298,11 +302,13 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
 
               // Right-Side Hotel Information Panel (Appears when a hotel point is clicked)
               if (selectedHotel != null)
-                HotelSidePanel(
-                  hotel: selectedHotel,
-                  onClose: () {
-                    hotelProvider.closePanel();
-                  },
+                PointerInterceptor(
+                  child: HotelSidePanel(
+                    hotel: selectedHotel,
+                    onClose: () {
+                      hotelProvider.closePanel();
+                    },
+                  ),
                 ),
             ],
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../models/hotel.dart';
@@ -201,72 +202,74 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
         Positioned(
           left: 24,
           bottom: 24,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppTheme.cardNavy.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppTheme.borderNavy),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 14),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.add, color: Colors.white, size: 20),
-                  tooltip: 'Zoom In',
-                  onPressed: () {
-                    _sendMessageToGlobe({
-                      'type': 'FOCUS_COORDINATES',
-                      'latitude': globeProvider.targetLatitude,
-                      'longitude': globeProvider.targetLongitude,
-                      'zoom': 7.6,
-                      'animate': true,
-                    });
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.remove, color: Colors.white, size: 20),
-                  tooltip: 'Zoom Out',
-                  onPressed: () {
-                    _sendMessageToGlobe({
-                      'type': 'FOCUS_COORDINATES',
-                      'latitude': globeProvider.targetLatitude,
-                      'longitude': globeProvider.targetLongitude,
-                      'zoom': 14.0,
-                      'animate': true,
-                    });
-                  },
-                ),
-                IconButton(
-                  icon: Icon(
-                    globeProvider.isAutoRotating ? Icons.pause : Icons.play_arrow,
-                    color: globeProvider.isAutoRotating ? AppTheme.accentCyan : Colors.white70,
-                    size: 20,
+          child: PointerInterceptor(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.cardNavy.withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppTheme.borderNavy),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 14),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.add, color: Colors.white, size: 20),
+                    tooltip: 'Zoom In',
+                    onPressed: () {
+                      _sendMessageToGlobe({
+                        'type': 'FOCUS_COORDINATES',
+                        'latitude': globeProvider.targetLatitude,
+                        'longitude': globeProvider.targetLongitude,
+                        'zoom': 7.6,
+                        'animate': true,
+                      });
+                    },
                   ),
-                  tooltip: globeProvider.isAutoRotating ? 'Pause Rotation' : 'Auto Rotate',
-                  onPressed: () {
-                    final next = !globeProvider.isAutoRotating;
-                    globeProvider.toggleAutoRotate(next);
-                    _sendMessageToGlobe({
-                      'type': 'TOGGLE_AUTO_ROTATE',
-                      'enabled': next,
-                    });
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.white70, size: 20),
-                  tooltip: 'Reset Global View',
-                  onPressed: () {
-                    globeProvider.resetView();
-                    hotelProvider.clearSearch();
-                    _sendMessageToGlobe({'type': 'RESET_VIEW'});
-                    _sendMessageToGlobe({'type': 'CLEAR_HOTELS'});
-                  },
-                ),
-              ],
+                  IconButton(
+                    icon: const Icon(Icons.remove, color: Colors.white, size: 20),
+                    tooltip: 'Zoom Out',
+                    onPressed: () {
+                      _sendMessageToGlobe({
+                        'type': 'FOCUS_COORDINATES',
+                        'latitude': globeProvider.targetLatitude,
+                        'longitude': globeProvider.targetLongitude,
+                        'zoom': 14.0,
+                        'animate': true,
+                      });
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      globeProvider.isAutoRotating ? Icons.pause : Icons.play_arrow,
+                      color: globeProvider.isAutoRotating ? AppTheme.accentCyan : Colors.white70,
+                      size: 20,
+                    ),
+                    tooltip: globeProvider.isAutoRotating ? 'Pause Rotation' : 'Auto Rotate',
+                    onPressed: () {
+                      final next = !globeProvider.isAutoRotating;
+                      globeProvider.toggleAutoRotate(next);
+                      _sendMessageToGlobe({
+                        'type': 'TOGGLE_AUTO_ROTATE',
+                        'enabled': next,
+                      });
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, color: Colors.white70, size: 20),
+                    tooltip: 'Reset Global View',
+                    onPressed: () {
+                      globeProvider.resetView();
+                      hotelProvider.clearSearch();
+                      _sendMessageToGlobe({'type': 'RESET_VIEW'});
+                      _sendMessageToGlobe({'type': 'CLEAR_HOTELS'});
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -276,53 +279,55 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
           Positioned(
             top: 24,
             left: 24,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppTheme.cardNavy.withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.6)),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.accentCyan.withValues(alpha: 0.2),
-                    blurRadius: 16,
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.location_on, color: AppTheme.accentCyan, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${widget.hotels.length} Hotel Points Placed on Earth',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
+            child: PointerInterceptor(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.cardNavy.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.6)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.accentCyan.withValues(alpha: 0.2),
+                      blurRadius: 16,
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  DropdownButtonHideUnderline(
-                    child: DropdownButton<double>(
-                      value: hotelProvider.searchRadiusKm,
-                      dropdownColor: AppTheme.cardNavy,
-                      style: const TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.bold, fontSize: 12),
-                      items: const [
-                        DropdownMenuItem(value: 5.0, child: Text('5 km radius')),
-                        DropdownMenuItem(value: 10.0, child: Text('10 km radius')),
-                        DropdownMenuItem(value: 20.0, child: Text('20 km radius')),
-                        DropdownMenuItem(value: 30.0, child: Text('30 km radius')),
-                        DropdownMenuItem(value: 50.0, child: Text('50 km radius')),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          hotelProvider.setRadius(val);
-                        }
-                      },
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.location_on, color: AppTheme.accentCyan, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${widget.hotels.length} Hotel Points Placed on Earth',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 14),
+                    DropdownButtonHideUnderline(
+                      child: DropdownButton<double>(
+                        value: hotelProvider.searchRadiusKm,
+                        dropdownColor: AppTheme.cardNavy,
+                        style: const TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.bold, fontSize: 12),
+                        items: const [
+                          DropdownMenuItem(value: 5.0, child: Text('5 km radius')),
+                          DropdownMenuItem(value: 10.0, child: Text('10 km radius')),
+                          DropdownMenuItem(value: 20.0, child: Text('20 km radius')),
+                          DropdownMenuItem(value: 30.0, child: Text('30 km radius')),
+                          DropdownMenuItem(value: 50.0, child: Text('50 km radius')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            hotelProvider.setRadius(val);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
