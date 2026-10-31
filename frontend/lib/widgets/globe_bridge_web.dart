@@ -87,6 +87,13 @@ class _WebGlobeWidgetState extends State<_WebGlobeWidget> {
 
   void _sendMessageToGlobe(Map<String, dynamic> message) {
     final iframe = _iframeElement ?? (web.document.getElementById('earth-globe-iframe') as web.HTMLIFrameElement?);
+    if (message['type'] == 'SET_BLUR') {
+      final blurred = message['blurred'] == true;
+      if (iframe != null) {
+        iframe.style.filter = blurred ? 'blur(10px)' : 'none';
+        iframe.style.transition = 'filter 0.3s ease';
+      }
+    }
     if (iframe?.contentWindow != null) {
       final jsonStr = jsonEncode(message);
       iframe!.contentWindow!.postMessage(jsonStr.toJS, '*'.toJS);

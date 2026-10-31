@@ -489,6 +489,15 @@
         setCoordinatesFocus(17.385, 78.486, true, 13.0);
         isAutoRotating = true;
         break;
+
+      case 'SET_BLUR':
+        if (data.blurred) {
+          container.style.filter = 'blur(10px)';
+          container.style.transition = 'filter 0.3s ease';
+        } else {
+          container.style.filter = 'none';
+        }
+        break;
     }
   }
 

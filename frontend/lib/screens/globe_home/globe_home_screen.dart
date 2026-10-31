@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
@@ -82,18 +83,23 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. Interactive 3D Earth Globe (Always 100% full screen background, never unmounted)
+          // ==========================================
+          // LAYER 1: BASE HOMEPAGE (Globe, Header, Status & Search)
+          // ==========================================
+
+          // 1a. Interactive 3D Earth Globe (Always 100% full screen background, never unmounted)
           Positioned.fill(
             child: InteractiveGlobe(
               hotels: hotelProvider.hotels,
               selectedHotel: selectedHotel,
+              isBlurred: hotelProvider.hasOpenTabs,
               onHotelSelected: (hotel) {
                 hotelProvider.selectHotel(hotel);
               },
             ),
           ),
 
-          // 2. Top Bar: Brand Logo & Navigation
+          // 1b. Top Bar: Brand Logo & Navigation
           Positioned(
             top: 20,
             left: 20,
@@ -105,59 +111,69 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
 
                   return Row(
                     children: [
-                      // Brand Logo
+                      // Brand Logo (Clickable: returns to full globe view, closes workspace, preserves destination)
                       InkWell(
                         onTap: () {
-                          hotelProvider.clearSearch();
+                          hotelProvider.closeAllTabs();
                           context.read<GlobeProvider>().resetView();
                         },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFF00D2FF), Color(0xFF3B82F6)],
-                                ),
-                                borderRadius: BorderRadius.circular(10),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppTheme.accentCyan.withOpacity(0.4),
-                                    blurRadius: 12,
-                                  )
-                                ],
-                              ),
-                              child: const Icon(Icons.public, color: Colors.white, size: 22),
-                            ),
-                            const SizedBox(width: 10),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text(
-                                  'SMART TRAVEL',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 16,
-                                    letterSpacing: 1.1,
+                        borderRadius: BorderRadius.circular(14),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF00D2FF), Color(0xFF3B82F6)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
                                   ),
+                                  borderRadius: BorderRadius.circular(11),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppTheme.accentCyan.withOpacity(0.4),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 2),
+                                    )
+                                  ],
                                 ),
-                                if (!isCompact)
-                                  Text(
-                                    '3D Luxury Globe & Expense Manager',
+                                child: const Icon(Icons.public, color: Colors.white, size: 24),
+                              ),
+                              const SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    'SMART TRAVEL',
                                     style: TextStyle(
-                                      color: AppTheme.accentCyan.withOpacity(0.9),
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w500,
-                                      letterSpacing: 0.5,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 16.5,
+                                      letterSpacing: 1.2,
+                                      height: 1.1,
                                     ),
                                   ),
-                              ],
-                            ),
-                          ],
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    isCompact ? 'Luxury Travel & 3D Globe' : '3D Luxury Globe & Expense Manager',
+                                    style: TextStyle(
+                                      color: AppTheme.accentCyan.withOpacity(0.9),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      letterSpacing: 0.5,
+                                      height: 1.1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
 
@@ -251,24 +267,33 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
             ),
           ),
 
-          // 3. Destination Search Bar (Shifted upward, prominent center-top when hotel tab is closed)
-          if (!hotelProvider.hasOpenTabs)
+          // 1c. Separate Status Indicator: Hotel count & search radius (No overlap with logo!)
+          if (hotelProvider.hotels.isNotEmpty)
             Positioned(
-              top: searchTop,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: PointerInterceptor(
-                  child: DestinationSearchBar(
-                    onDestinationSelected: (query, lat, lng) {
-                      // Globe updates automatically via Provider
-                    },
-                  ),
-                ),
+              top: screenWidth >= 1180 ? 76 : (screenWidth >= 780 ? 116 : 126),
+              left: 20,
+              child: PointerInterceptor(
+                child: _buildHotelStatusIndicator(context, hotelProvider),
               ),
             ),
 
-          // 4. Loading indicator overlay during hotel search
+          // 1d. Destination Search Bar (Prominent center-top)
+          Positioned(
+            top: searchTop,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: PointerInterceptor(
+                child: DestinationSearchBar(
+                  onDestinationSelected: (query, lat, lng) {
+                    // Globe updates automatically via Provider
+                  },
+                ),
+              ),
+            ),
+          ),
+
+          // 1e. Loading indicator overlay during hotel search
           if (hotelProvider.isLoading)
             Positioned(
               bottom: 36,
@@ -301,11 +326,123 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
               ),
             ),
 
-          // 5. In-Page Hotel Tab / Floating Workspace (Opens over the existing globe)
+          // ==========================================
+          // LAYER 2: BLUR & DARK TRANSLUCENT OVERLAY
+          // ==========================================
+          // Blurs the entire background homepage (3D Earth globe, stars, header, search bar, markers)
+          // Uses BackdropFilter with sigma 10 and a subtle dark transparent overlay.
+          // Smooth fade-in animation and allows tapping outside to close the workspace.
           if (hotelProvider.hasOpenTabs)
-            const Positioned.fill(
-              child: HotelWorkspaceTab(),
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () {
+                  hotelProvider.closeAllTabs();
+                  context.read<GlobeProvider>().resetView();
+                },
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, child) {
+                    return Opacity(
+                      opacity: value,
+                      child: ClipRect(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10.0 * value, sigmaY: 10.0 * value),
+                          child: Container(
+                            color: Colors.black.withValues(alpha: 0.52 * value),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
+
+          // ==========================================
+          // LAYER 3: HOTEL WORKSPACE (RAZOR SHARP FOREGROUND)
+          // ==========================================
+          // Positioned on top of the blur layer!
+          // Completely crisp and untouched by the background blur.
+          if (hotelProvider.hasOpenTabs)
+            Positioned.fill(
+              child: PointerInterceptor(
+                child: const HotelWorkspaceTab(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Neatly aligned status indicator for hotel count & search radius (Separated from logo)
+  Widget _buildHotelStatusIndicator(BuildContext context, HotelProvider hotelProvider) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F1A32).withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.45), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+              color: AppTheme.accentCyan,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(color: AppTheme.accentCyan, blurRadius: 6, spreadRadius: 1),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${hotelProvider.hotels.length} Verified Hotels on Globe',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            height: 14,
+            width: 1,
+            color: AppTheme.borderNavy,
+          ),
+          const SizedBox(width: 10),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<double>(
+              value: hotelProvider.searchRadiusKm,
+              dropdownColor: const Color(0xFF0D172E),
+              isDense: true,
+              icon: const Icon(Icons.arrow_drop_down, color: AppTheme.accentCyan, size: 18),
+              style: const TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.bold, fontSize: 12),
+              items: const [
+                DropdownMenuItem(value: 5.0, child: Text('5 km radius')),
+                DropdownMenuItem(value: 10.0, child: Text('10 km radius')),
+                DropdownMenuItem(value: 20.0, child: Text('20 km radius')),
+                DropdownMenuItem(value: 30.0, child: Text('30 km radius')),
+                DropdownMenuItem(value: 50.0, child: Text('50 km radius')),
+              ],
+              onChanged: (val) {
+                if (val != null) {
+                  hotelProvider.setRadius(val);
+                }
+              },
+            ),
+          ),
         ],
       ),
     );

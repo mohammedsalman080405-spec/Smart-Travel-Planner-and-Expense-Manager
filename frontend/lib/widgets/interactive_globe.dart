@@ -12,12 +12,14 @@ class InteractiveGlobe extends StatefulWidget {
   final List<Hotel> hotels;
   final Hotel? selectedHotel;
   final Function(Hotel hotel)? onHotelSelected;
+  final bool isBlurred;
 
   const InteractiveGlobe({
     super.key,
     required this.hotels,
     this.selectedHotel,
     this.onHotelSelected,
+    this.isBlurred = false,
   });
 
   @override
@@ -150,6 +152,14 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
   void didUpdateWidget(covariant InteractiveGlobe oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    // Update blur state on Three.js globe iframe
+    if (widget.isBlurred != oldWidget.isBlurred) {
+      _sendMessageToGlobe({
+        'type': 'SET_BLUR',
+        'blurred': widget.isBlurred,
+      });
+    }
+
     // Update hotels on globe if changed
     if (widget.hotels != oldWidget.hotels) {
       if (widget.hotels.isEmpty) {
@@ -273,64 +283,6 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
             ),
           ),
         ),
-
-        // Live Properties Badge if hotels are present on globe
-        if (widget.hotels.isNotEmpty)
-          Positioned(
-            top: 24,
-            left: 24,
-            child: PointerInterceptor(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppTheme.cardNavy.withValues(alpha: 0.92),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.6)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.accentCyan.withValues(alpha: 0.2),
-                      blurRadius: 16,
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.location_on, color: AppTheme.accentCyan, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${widget.hotels.length} Hotel Points Placed on Earth',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    DropdownButtonHideUnderline(
-                      child: DropdownButton<double>(
-                        value: hotelProvider.searchRadiusKm,
-                        dropdownColor: AppTheme.cardNavy,
-                        style: const TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.bold, fontSize: 12),
-                        items: const [
-                          DropdownMenuItem(value: 5.0, child: Text('5 km radius')),
-                          DropdownMenuItem(value: 10.0, child: Text('10 km radius')),
-                          DropdownMenuItem(value: 20.0, child: Text('20 km radius')),
-                          DropdownMenuItem(value: 30.0, child: Text('30 km radius')),
-                          DropdownMenuItem(value: 50.0, child: Text('50 km radius')),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            hotelProvider.setRadius(val);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
