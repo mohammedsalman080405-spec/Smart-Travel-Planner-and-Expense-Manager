@@ -15,7 +15,7 @@ import '../screens/space_details/space_3d_screen.dart';
 
 class AppRoutes {
   static final router = GoRouter(
-    initialLocation: '/',
+    initialLocation: '/login',
     routes: [
       GoRoute(
         path: '/',

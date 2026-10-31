@@ -338,23 +338,17 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
 
           const SizedBox(height: 12),
 
-          // 4. Logout
+          // 4. Logout / Sign In
           _SidebarNavButton(
-            icon: Icons.logout_rounded,
-            label: 'Logout',
+            icon: authProvider.isAuthenticated ? Icons.logout_rounded : Icons.login_rounded,
+            label: authProvider.isAuthenticated ? 'Logout' : 'Sign In',
             isActive: false,
             onTap: () async {
               if (authProvider.isAuthenticated) {
                 await authProvider.logout();
               }
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Logged out of Smart Travel Planner session'),
-                    backgroundColor: Color(0xFF0F172A),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
+                context.go('/login');
               }
             },
           ),
@@ -396,6 +390,10 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
           IconButton(
             icon: const Icon(Icons.bookmark_border, color: AppTheme.accentCyan, size: 20),
             onPressed: () => context.push('/bookings'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout_rounded, color: AppTheme.accentCyan, size: 20),
+            onPressed: () => context.go('/login'),
           ),
         ],
       ),
