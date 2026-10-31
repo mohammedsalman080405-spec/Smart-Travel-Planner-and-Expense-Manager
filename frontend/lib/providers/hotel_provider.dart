@@ -5,6 +5,8 @@ import '../services/hotel_service.dart';
 class HotelProvider extends ChangeNotifier {
   List<Hotel> _hotels = [];
   Hotel? _selectedHotel;
+  final List<Hotel> _openTabs = [];
+  int _activeTabIndex = -1;
   bool _isLoading = false;
   String? _errorMessage;
   double _searchRadiusKm = 30.0;
@@ -12,12 +14,15 @@ class HotelProvider extends ChangeNotifier {
   double? _currentLat;
   double? _currentLng;
 
-  // Selected dates for side panel estimated trip expense
+  // Selected dates for estimated trip expense
   DateTime _checkInDate = DateTime.now().add(const Duration(days: 7));
   DateTime _checkOutDate = DateTime.now().add(const Duration(days: 10));
 
   List<Hotel> get hotels => _hotels;
   Hotel? get selectedHotel => _selectedHotel;
+  List<Hotel> get openTabs => _openTabs;
+  int get activeTabIndex => _activeTabIndex;
+  bool get hasOpenTabs => _openTabs.isNotEmpty;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   double get searchRadiusKm => _searchRadiusKm;
@@ -50,11 +55,49 @@ class HotelProvider extends ChangeNotifier {
   }
 
   void selectHotel(Hotel hotel) {
-    _selectedHotel = hotel;
+    final existingIndex = _openTabs.indexWhere((h) => h.hotelId == hotel.hotelId);
+    if (existingIndex >= 0) {
+      _activeTabIndex = existingIndex;
+      _selectedHotel = _openTabs[existingIndex];
+    } else {
+      _openTabs.add(hotel);
+      _activeTabIndex = _openTabs.length - 1;
+      _selectedHotel = hotel;
+    }
     notifyListeners();
   }
 
+  void switchToTab(int index) {
+    if (index >= 0 && index < _openTabs.length) {
+      _activeTabIndex = index;
+      _selectedHotel = _openTabs[index];
+      notifyListeners();
+    }
+  }
+
+  void closeTab(int index) {
+    if (index >= 0 && index < _openTabs.length) {
+      _openTabs.removeAt(index);
+      if (_openTabs.isEmpty) {
+        _activeTabIndex = -1;
+        _selectedHotel = null;
+      } else {
+        if (_activeTabIndex >= _openTabs.length) {
+          _activeTabIndex = _openTabs.length - 1;
+        }
+        _selectedHotel = _openTabs[_activeTabIndex];
+      }
+      notifyListeners();
+    }
+  }
+
   void closePanel() {
+    closeAllTabs();
+  }
+
+  void closeAllTabs() {
+    _openTabs.clear();
+    _activeTabIndex = -1;
     _selectedHotel = null;
     notifyListeners();
   }
@@ -103,6 +146,8 @@ class HotelProvider extends ChangeNotifier {
   void clearSearch() {
     _hotels = [];
     _selectedHotel = null;
+    _openTabs.clear();
+    _activeTabIndex = -1;
     _currentDestination = '';
     _currentLat = null;
     _currentLng = null;
