@@ -6,6 +6,7 @@ import '../models/hotel.dart';
 import '../providers/globe_provider.dart';
 import '../providers/hotel_provider.dart';
 import '../services/destination_service.dart';
+import '../services/hotel_service.dart';
 import 'globe_bridge.dart';
 
 class InteractiveGlobe extends StatefulWidget {
@@ -92,6 +93,15 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
       if (widget.onHotelSelected != null) {
         widget.onHotelSelected!(matched);
       }
+    } else {
+      HotelService.getHotelDetails(hotelId).then((fetched) {
+        if (mounted) {
+          hotelProvider.selectHotel(fetched);
+          if (widget.onHotelSelected != null) {
+            widget.onHotelSelected!(fetched);
+          }
+        }
+      }).catchError((_) {});
     }
   }
 

@@ -67,9 +67,9 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
 
     try {
       final geo = await DestinationService.geocode(trimmed);
-      final double lat = (geo['latitude'] as num).toDouble();
-      final double lng = (geo['longitude'] as num).toDouble();
-      final String name = geo['name'] ?? trimmed;
+      final double lat = (geo['latitude'] as num?)?.toDouble() ?? 0.0;
+      final double lng = (geo['longitude'] as num?)?.toDouble() ?? 0.0;
+      final String name = geo['name']?.toString() ?? trimmed;
       debugPrint('[Search] API response received: lat=$lat, lng=$lng, name="$name"');
 
       if (mounted) {

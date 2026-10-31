@@ -249,9 +249,56 @@
     }
   }
 
-  // Render small visible dots on the Earth surface for each hotel
+  // Cached procedural glowing dot textures for optimal WebGL performance
+  let cyanGlowTexture = null;
+  let goldGlowTexture = null;
+
+  function getCyanGlowTexture() {
+    if (cyanGlowTexture) return cyanGlowTexture;
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+
+    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gradient.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+    gradient.addColorStop(0.18, 'rgba(0, 240, 255, 0.95)');
+    gradient.addColorStop(0.45, 'rgba(0, 210, 255, 0.55)');
+    gradient.addColorStop(0.75, 'rgba(0, 160, 255, 0.18)');
+    gradient.addColorStop(1.0, 'rgba(0, 140, 255, 0.0)');
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 128, 128);
+
+    cyanGlowTexture = new THREE.CanvasTexture(canvas);
+    return cyanGlowTexture;
+  }
+
+  function getGoldGlowTexture() {
+    if (goldGlowTexture) return goldGlowTexture;
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+
+    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gradient.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+    gradient.addColorStop(0.18, 'rgba(255, 215, 0, 0.95)');
+    gradient.addColorStop(0.45, 'rgba(245, 158, 11, 0.55)');
+    gradient.addColorStop(0.75, 'rgba(217, 119, 6, 0.18)');
+    gradient.addColorStop(1.0, 'rgba(180, 83, 9, 0.0)');
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 128, 128);
+
+    goldGlowTexture = new THREE.CanvasTexture(canvas);
+    return goldGlowTexture;
+  }
+
+  // Render small, glowing circular cyan dots on the Earth surface for each hotel
+  // 1 Hotel = 1 Small Cyan Dot with Subtle Outer Glow (Exactly matches reference image)
   function renderHotelMarkers(hotelsList) {
-    console.log(`[EarthGlobe] Rendering ${hotelsList.length} hotel markers on globe surface...`);
+    console.log(`[EarthGlobe] Rendering ${hotelsList.length} small cyan hotel dots on globe surface...`);
     clearHotelMarkers();
 
     if (!hotelsList || hotelsList.length === 0) {
@@ -259,76 +306,91 @@
       return;
     }
 
+    const placedCoords = [];
+
     hotelsList.forEach((hotel, idx) => {
-      const lat = parseFloat(hotel.latitude);
-      const lng = parseFloat(hotel.longitude);
+      let lat = parseFloat(hotel.latitude);
+      let lng = parseFloat(hotel.longitude);
 
       if (isNaN(lat) || isNaN(lng)) return;
 
-      const surfaceRadius = GLOBE_RADIUS + 0.05;
-      const pos = latLngToVector3(lat, lng, surfaceRadius);
+      // Check for extremely close proximity with already placed hotels (< 0.003 deg)
+      // and apply a micro visual spiderfy tangent offset so both dots remain distinct and clickable
+      let offsetLat = 0;
+      let offsetLng = 0;
+      for (let i = 0; i < placedCoords.length; i++) {
+        const dLat = Math.abs(placedCoords[i].lat - lat);
+        const dLng = Math.abs(placedCoords[i].lng - lng);
+        if (dLat < 0.0035 && dLng < 0.0035) {
+          const angle = (idx * 1.618033) * Math.PI * 2;
+          offsetLat = Math.sin(angle) * 0.004;
+          offsetLng = Math.cos(angle) * 0.004;
+          break;
+        }
+      }
+      placedCoords.push({ lat: lat, lng: lng });
 
-      // Marker container attached to earthGroup so it stays glued to Earth
+      const surfaceRadius = GLOBE_RADIUS + 0.025;
+      const pos = latLngToVector3(lat + offsetLat, lng + offsetLng, surfaceRadius);
+
+      // Marker container attached to earthGroup so it rotates glued to Earth
       const markerGroup = new THREE.Group();
       markerGroup.position.copy(pos);
 
-      // Orient marker so it points outwards along the sphere normal
-      markerGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pos.clone().normalize());
+      // Orient marker along the surface normal
+      const normal = pos.clone().normalize();
+      markerGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
 
-      // 1. Base glowing dot on sphere surface
-      const dotGeometry = new THREE.SphereGeometry(0.08, 16, 16);
-      const dotMaterial = new THREE.MeshBasicMaterial({ color: 0x00F0FF });
+      // 1. Small Circular Cyan Dot (Surface Dot, Radius 0.045)
+      const dotGeometry = new THREE.SphereGeometry(0.045, 16, 16);
+      const dotMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00F0FF,
+        depthTest: true,
+        depthWrite: true
+      });
       const dotMesh = new THREE.Mesh(dotGeometry, dotMaterial);
       markerGroup.add(dotMesh);
 
-      // 2. Vertical Pin Stem
-      const stemGeometry = new THREE.CylinderGeometry(0.015, 0.015, 0.28, 8);
-      const stemMaterial = new THREE.MeshBasicMaterial({ color: 0x00D2FF });
-      const stemMesh = new THREE.Mesh(stemGeometry, stemMaterial);
-      stemMesh.position.y = 0.14;
-      markerGroup.add(stemMesh);
-
-      // 3. Glowing Pin Head Badge
-      const headGeometry = new THREE.SphereGeometry(0.12, 16, 16);
-      const headMaterial = new THREE.MeshStandardMaterial({
-        color: 0x00D2FF,
-        emissive: 0x00F0FF,
-        emissiveIntensity: 0.8,
-        roughness: 0.2
-      });
-      const headMesh = new THREE.Mesh(headGeometry, headMaterial);
-      headMesh.position.y = 0.32;
-      markerGroup.add(headMesh);
-
-      // 4. Ground Pulsing Ripple Ring
-      const ringGeometry = new THREE.RingGeometry(0.09, 0.16, 24);
-      const ringMaterial = new THREE.MeshBasicMaterial({
+      // 2. Subtle Outer Radial Glow Billboard Sprite (Electric Cyan Halo)
+      const glowMaterial = new THREE.SpriteMaterial({
+        map: getCyanGlowTexture(),
         color: 0x00F0FF,
-        side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.7
+        opacity: 0.88,
+        blending: THREE.AdditiveBlending,
+        depthTest: true,
+        depthWrite: false
       });
-      const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
-      ringMesh.rotation.x = Math.PI / 2;
-      markerGroup.add(ringMesh);
+      const glowSprite = new THREE.Sprite(glowMaterial);
+      const baseScale = 0.22;
+      glowSprite.scale.set(baseScale, baseScale, 1.0);
+      markerGroup.add(glowSprite);
 
-      // Store hotel metadata on the marker group and children for raycasting
+      // 3. Invisible Hit Proxy for Smooth, Reliable Mouse Clicking
+      const hitGeometry = new THREE.SphereGeometry(0.09, 8, 8);
+      const hitMaterial = new THREE.MeshBasicMaterial({ visible: false });
+      const hitMesh = new THREE.Mesh(hitGeometry, hitMaterial);
+      markerGroup.add(hitMesh);
+
+      // Store metadata
       markerGroup.userData = {
         hotel: hotel,
         hotelId: hotel.hotel_id,
         isHotelMarker: true,
-        ringMesh: ringMesh,
-        headMesh: headMesh,
-        pulseVal: Math.random() * Math.PI
+        dotMesh: dotMesh,
+        glowSprite: glowSprite,
+        hitMesh: hitMesh,
+        pulsePhase: (idx * 0.75) % (Math.PI * 2),
+        baseScale: baseScale
       };
-      headMesh.userData = markerGroup.userData;
+      hitMesh.userData = markerGroup.userData;
       dotMesh.userData = markerGroup.userData;
 
       earthGroup.add(markerGroup);
       hotelMarkers.push(markerGroup);
     });
 
-    console.log(`[EarthGlobe] Successfully rendered ${hotelMarkers.length} markers.`);
+    console.log(`[EarthGlobe] Successfully rendered ${hotelMarkers.length} small cyan hotel dots.`);
   }
 
   function clearHotelMarkers() {
@@ -337,21 +399,22 @@
     });
     hotelMarkers.length = 0;
     selectedMarkerId = null;
+    hoveredMarker = null;
     hideTooltip();
   }
 
   function selectHotelMarker(hotelId) {
     selectedMarkerId = hotelId;
     hotelMarkers.forEach((m) => {
-      const isSelected = m.userData.hotelId === hotelId;
-      if (m.userData.headMesh) {
-        m.userData.headMesh.material.color.setHex(isSelected ? 0xFBBF24 : 0x00D2FF);
-        m.userData.headMesh.material.emissive.setHex(isSelected ? 0xF59E0B : 0x00F0FF);
+      const isSelected = (m.userData.hotelId === hotelId);
+      if (m.userData.dotMesh) {
+        m.userData.dotMesh.material.color.setHex(isSelected ? 0xFFD700 : 0x00F0FF);
       }
-      if (isSelected) {
-        // Focus camera towards this hotel
-        const h = m.userData.hotel;
-        setCoordinatesFocus(parseFloat(h.latitude), parseFloat(h.longitude), true, 8.8);
+      if (m.userData.glowSprite) {
+        m.userData.glowSprite.material.map = isSelected ? getGoldGlowTexture() : getCyanGlowTexture();
+        m.userData.glowSprite.material.color.setHex(isSelected ? 0xFBBF24 : 0x00F0FF);
+        const selScale = isSelected ? 0.32 : m.userData.baseScale;
+        m.userData.glowSprite.scale.set(selScale, selScale, 1.0);
       }
     });
   }
@@ -366,6 +429,8 @@
     lastUserInteraction = Date.now();
   }
 
+  let hoveredMarker = null;
+
   function onMouseMove(event) {
     const rect = renderer.domElement.getBoundingClientRect();
     mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -373,22 +438,49 @@
 
     raycaster.setFromCamera(mouse, camera);
 
-    // Collect clickable meshes
+    // Only test markers that are on the visible side of the Earth
     const clickableObjects = [];
     hotelMarkers.forEach((m) => {
-      if (m.userData.headMesh) clickableObjects.push(m.userData.headMesh);
+      if (m.visible && m.userData.hitMesh) {
+        clickableObjects.push(m.userData.hitMesh);
+      }
     });
 
     const intersects = raycaster.intersectObjects(clickableObjects);
 
     if (intersects.length > 0) {
       const hit = intersects[0];
-      const hotel = hit.object.userData.hotel;
+      const m = hit.object.parent;
+      const hotel = m.userData.hotel;
       if (hotel) {
         renderer.domElement.style.cursor = 'pointer';
         showTooltip(event.clientX, event.clientY, hotel);
+
+        if (hoveredMarker !== m) {
+          if (hoveredMarker && hoveredMarker.userData.hotelId !== selectedMarkerId) {
+            hoveredMarker.userData.glowSprite.scale.set(
+              hoveredMarker.userData.baseScale,
+              hoveredMarker.userData.baseScale,
+              1.0
+            );
+          }
+          hoveredMarker = m;
+          const hovScale = m.userData.hotelId === selectedMarkerId ? 0.36 : 0.30;
+          m.userData.glowSprite.scale.set(hovScale, hovScale, 1.0);
+        }
         return;
       }
+    }
+
+    if (hoveredMarker) {
+      if (hoveredMarker.userData.hotelId !== selectedMarkerId) {
+        hoveredMarker.userData.glowSprite.scale.set(
+          hoveredMarker.userData.baseScale,
+          hoveredMarker.userData.baseScale,
+          1.0
+        );
+      }
+      hoveredMarker = null;
     }
 
     renderer.domElement.style.cursor = 'grab';
@@ -402,18 +494,22 @@
 
     raycaster.setFromCamera(mouse, camera);
 
+    // Only clickable if visible on the front-facing hemisphere of Earth
     const clickableObjects = [];
     hotelMarkers.forEach((m) => {
-      if (m.userData.headMesh) clickableObjects.push(m.userData.headMesh);
+      if (m.visible && m.userData.hitMesh) {
+        clickableObjects.push(m.userData.hitMesh);
+      }
     });
 
     const intersects = raycaster.intersectObjects(clickableObjects);
 
     if (intersects.length > 0) {
       const hit = intersects[0];
-      const hotel = hit.object.userData.hotel;
+      const m = hit.object.parent;
+      const hotel = m.userData.hotel;
       if (hotel) {
-        console.log(`[EarthGlobe] Hotel marker clicked: ${hotel.hotel_name} (ID: ${hotel.hotel_id})`);
+        console.log(`[EarthGlobe] Hotel dot clicked: ${hotel.hotel_name} (ID: ${hotel.hotel_id})`);
         selectHotelMarker(hotel.hotel_id);
 
         // Send event to Flutter parent
@@ -460,7 +556,7 @@
             parseFloat(data.latitude),
             parseFloat(data.longitude),
             data.animate !== false,
-            data.zoom || 9.2
+            data.zoom || 8.6
           );
         }
         break;
@@ -554,13 +650,32 @@
       }
     }
 
-    // 4. Animate pulsing rings on hotel markers
+    // 4. Update hotel markers: Back-of-globe occlusion and subtle breathing glow
+    const cameraWorldDir = camera.position.clone().normalize();
+    const tempMarkerPos = new THREE.Vector3();
+    const timeNow = Date.now() * 0.003;
+
     hotelMarkers.forEach((m) => {
-      if (m.userData.ringMesh) {
-        m.userData.pulseVal = (m.userData.pulseVal || 0) + 0.04;
-        const scale = 1.0 + Math.sin(m.userData.pulseVal) * 0.35;
-        m.userData.ringMesh.scale.set(scale, scale, scale);
-        m.userData.ringMesh.material.opacity = 0.8 - (scale - 1.0) * 0.6;
+      m.getWorldPosition(tempMarkerPos);
+      const markerDir = tempMarkerPos.clone().normalize();
+      const dot = markerDir.dot(cameraWorldDir);
+
+      // Markers on the back of the globe (facing away from camera) are hidden
+      // Markers on visible side (dot > 0.03) remain visible and clickable
+      if (dot <= 0.03) {
+        m.visible = false;
+        if (hoveredMarker === m) {
+          hideTooltip();
+          hoveredMarker = null;
+        }
+      } else {
+        m.visible = true;
+        // Subtle breathing pulse on the outer cyan glow when idle
+        if (m.userData.glowSprite && m !== hoveredMarker && m.userData.hotelId !== selectedMarkerId) {
+          const pulse = 1.0 + 0.08 * Math.sin(timeNow + (m.userData.pulsePhase || 0));
+          const s = m.userData.baseScale * pulse;
+          m.userData.glowSprite.scale.set(s, s, 1.0);
+        }
       }
     });
 

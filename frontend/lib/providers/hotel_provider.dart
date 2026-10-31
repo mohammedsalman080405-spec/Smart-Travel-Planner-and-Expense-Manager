@@ -120,6 +120,7 @@ class HotelProvider extends ChangeNotifier {
     String? destination,
   }) async {
     _isLoading = true;
+    _hotels = []; // Clear previous markers immediately so old dots vanish
     _errorMessage = null;
     _currentLat = latitude;
     _currentLng = longitude;
@@ -133,7 +134,13 @@ class HotelProvider extends ChangeNotifier {
         destination: destination,
         radiusKm: _searchRadiusKm,
       );
-      _hotels = res['hotels'] as List<Hotel>;
+      if (res['hotels'] is List<Hotel>) {
+        _hotels = res['hotels'] as List<Hotel>;
+      } else if (res['hotels'] is List) {
+        _hotels = (res['hotels'] as List).map((h) => h is Hotel ? h : Hotel.fromJson(h as Map<String, dynamic>)).toList();
+      } else {
+        _hotels = [];
+      }
       _isLoading = false;
       notifyListeners();
     } catch (e) {
