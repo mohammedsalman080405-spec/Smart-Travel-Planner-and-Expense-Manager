@@ -29,12 +29,17 @@
   const tooltipSub = document.getElementById('tooltip-sub');
   const loadingOverlay = document.getElementById('loading-overlay');
 
+  // Offset variables to shift the Earth towards the right and downwards
+  // Keeping it visually centered in the main content area away from the left sidebar
+  let globeOffsetX = (window.innerWidth > 800) ? 1.9 : 0.0;
+  let globeOffsetY = (window.innerWidth > 800) ? -1.25 : -0.5;
+
   function init() {
-    console.log('[EarthGlobe] Initializing Realistic 3D Earth Scene...');
+    console.log('[EarthGlobe] Initializing Realistic 3D Earth Scene on Pure Black...');
 
     // 1. Scene & Camera
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x080E1E);
+    scene.background = new THREE.Color(0x000000); // Pure Black Background
 
     camera = new THREE.PerspectiveCamera(
       45,
@@ -42,18 +47,18 @@
       0.1,
       1000
     );
-    camera.position.set(0, 0, 13.0);
+    camera.position.set(globeOffsetX, globeOffsetY, 13.0);
 
     // 2. Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.2;
     container.appendChild(renderer.domElement);
     renderer.domElement.id = 'globe-canvas';
 
-    // 3. OrbitControls
+    // 3. OrbitControls centered around the shifted Earth position
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
@@ -62,25 +67,25 @@
     controls.minDistance = 6.8;
     controls.maxDistance = 22.0;
     controls.enablePan = false;
+    controls.target.set(globeOffsetX, globeOffsetY, 0);
 
     controls.addEventListener('start', onInteractionStart);
     controls.addEventListener('end', onInteractionEnd);
 
-    // 4. Earth Group (holds Earth, clouds, atmosphere and markers)
+    // 4. Earth Group (holds Earth, clouds, and markers shifted right & down)
     earthGroup = new THREE.Group();
+    earthGroup.position.set(globeOffsetX, globeOffsetY, 0);
     scene.add(earthGroup);
 
-    // 5. Lighting
-    // Directional sunlight (Simulating sun illuminating Earth)
-    const sunLight = new THREE.DirectionalLight(0xffffff, 1.4);
-    sunLight.position.set(20, 8, 12);
+    // 5. Lighting (Directional sunlight from top-right + subtle ambient space bounce)
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1.45);
+    sunLight.position.set(22, 10, 14);
     scene.add(sunLight);
 
-    // Ambient space lighting (subtle navy bounce so dark side is visible)
-    const ambientLight = new THREE.AmbientLight(0x223558, 0.45);
+    const ambientLight = new THREE.AmbientLight(0x18243c, 0.4);
     scene.add(ambientLight);
 
-    // 6. Deep Space Starfield
+    // 6. Deep Space Starfield with white & subtle electric-blue particles
     createStarfield();
 
     // 7. Load Textures & Build Meshes
@@ -99,13 +104,13 @@
   }
 
   function createStarfield() {
-    const starCount = 1800;
+    const starCount = 2400;
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(starCount * 3);
     const colors = new Float32Array(starCount * 3);
 
     for (let i = 0; i < starCount * 3; i += 3) {
-      const radius = 60 + Math.random() * 120;
+      const radius = 60 + Math.random() * 140;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(Math.random() * 2 - 1);
 
@@ -113,20 +118,27 @@
       positions[i + 1] = radius * Math.sin(phi) * Math.sin(theta);
       positions[i + 2] = radius * Math.cos(phi);
 
-      const brightness = 0.4 + Math.random() * 0.6;
-      colors[i] = brightness;
-      colors[i + 1] = brightness * 0.95;
-      colors[i + 2] = brightness;
+      // 30% subtle electric blue/cyan stars, 70% pure white stars
+      if (Math.random() < 0.3) {
+        colors[i] = 0.2 + Math.random() * 0.3;
+        colors[i + 1] = 0.7 + Math.random() * 0.3;
+        colors[i + 2] = 1.0;
+      } else {
+        const brightness = 0.6 + Math.random() * 0.4;
+        colors[i] = brightness;
+        colors[i + 1] = brightness;
+        colors[i + 2] = brightness;
+      }
     }
 
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const material = new THREE.PointsMaterial({
-      size: 0.8,
+      size: 1.1,
       vertexColors: true,
       transparent: true,
-      opacity: 0.85
+      opacity: 0.9
     });
 
     starsMesh = new THREE.Points(geometry, material);
@@ -155,8 +167,9 @@
     const normalTexture = textureLoader.load('../assets/earth/earth_normal.jpg');
     const specularTexture = textureLoader.load('../assets/earth/earth_specular.jpg');
     const cloudsTexture = textureLoader.load('../assets/earth/earth_clouds.png');
+    const nightTexture = textureLoader.load('../assets/earth/earth_night_lights.png');
 
-    // 1. Earth Sphere
+    // 1. Earth Sphere with Day Texture + City Night Lights Emissive
     const earthGeometry = new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64);
     const earthMaterial = new THREE.MeshPhongMaterial({
       map: dayTexture,
@@ -170,7 +183,7 @@
     earthMesh = new THREE.Mesh(earthGeometry, earthMaterial);
     earthGroup.add(earthMesh);
 
-    // 2. Realistic Cloud Layer (slightly larger sphere, slowly rotating)
+    // 2. Realistic Cloud Layer (slowly rotating)
     const cloudsGeometry = new THREE.SphereGeometry(GLOBE_RADIUS + 0.04, 64, 64);
     const cloudsMaterial = new THREE.MeshPhongMaterial({
       map: cloudsTexture,
@@ -183,7 +196,7 @@
     cloudsMesh = new THREE.Mesh(cloudsGeometry, cloudsMaterial);
     earthGroup.add(cloudsMesh);
 
-    // 3. Subtle Atmospheric Glow Halo
+    // 3. Electric Cyan Atmospheric Halo around Earth
     const atmosphereGeometry = new THREE.SphereGeometry(GLOBE_RADIUS + 0.12, 64, 64);
     const atmosphereMaterial = new THREE.ShaderMaterial({
       vertexShader: `
@@ -196,8 +209,8 @@
       fragmentShader: `
         varying vec3 vNormal;
         void main() {
-          float intensity = pow(0.68 - dot(vNormal, vec3(0, 0, 1.0)), 2.2);
-          gl_FragColor = vec4(0.0, 0.72, 1.0, 1.0) * intensity;
+          float intensity = pow(0.68 - dot(vNormal, vec3(0, 0, 1.0)), 2.0);
+          gl_FragColor = vec4(0.0, 0.82, 1.0, 1.0) * intensity * 1.35;
         }
       `,
       blending: THREE.AdditiveBlending,
@@ -206,10 +219,11 @@
     });
 
     atmosphereMesh = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+    atmosphereMesh.position.set(globeOffsetX, globeOffsetY, 0);
     scene.add(atmosphereMesh);
 
-    // Set initial camera focus towards India / Central Asia
-    setCoordinatesFocus(17.385044, 78.486671, false, 13.0);
+    // Set initial camera view showing Atlantic, Europe, and Africa matching the reference image
+    setCoordinatesFocus(20.0, -30.0, false, 13.0);
   }
 
   // Convert Latitude & Longitude to 3D Cartesian coordinates on sphere
@@ -231,7 +245,7 @@
     return { rotX, rotY };
   }
 
-  function setCoordinatesFocus(lat, lng, animate = true, zoomDistance = 9.5) {
+  function setCoordinatesFocus(lat, lng, animate = true, zoomDistance = 8.6) {
     console.log(`[EarthGlobe] Focusing coordinates: lat=${lat}, lng=${lng}, animate=${animate}`);
     const targets = getTargetRotation(lat, lng);
     targetRotationY = targets.rotY;
@@ -241,7 +255,8 @@
     if (!animate) {
       earthGroup.rotation.y = targetRotationY;
       earthGroup.rotation.x = targetRotationX;
-      camera.position.set(0, 0, targetCameraDistance);
+      camera.position.set(globeOffsetX, globeOffsetY, targetCameraDistance);
+      controls.target.set(globeOffsetX, globeOffsetY, 0);
     } else {
       isAnimatingTarget = true;
       isAutoRotating = false;
@@ -582,7 +597,7 @@
         break;
 
       case 'RESET_VIEW':
-        setCoordinatesFocus(17.385, 78.486, true, 13.0);
+        setCoordinatesFocus(20.0, -30.0, true, 13.0);
         isAutoRotating = true;
         break;
 
@@ -608,6 +623,12 @@
     camera.aspect = container.clientWidth / container.clientHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(container.clientWidth, container.clientHeight);
+
+    globeOffsetX = (container.clientWidth > 800) ? 1.9 : 0.0;
+    globeOffsetY = (container.clientWidth > 800) ? -1.25 : -0.5;
+    if (earthGroup) earthGroup.position.set(globeOffsetX, globeOffsetY, 0);
+    if (atmosphereMesh) atmosphereMesh.position.set(globeOffsetX, globeOffsetY, 0);
+    if (controls) controls.target.set(globeOffsetX, globeOffsetY, 0);
   }
 
   // Render loop
@@ -642,6 +663,10 @@
       if (Math.abs(distDiff) > 0.05) {
         camera.position.z += distDiff * 0.08;
       }
+
+      camera.position.x = globeOffsetX;
+      camera.position.y = globeOffsetY;
+      controls.target.set(globeOffsetX, globeOffsetY, 0);
     }
     // 3. Auto-rotation when idle
     else if (isAutoRotating && Date.now() - lastUserInteraction > 2500) {
@@ -651,13 +676,13 @@
     }
 
     // 4. Update hotel markers: Back-of-globe occlusion and subtle breathing glow
-    const cameraWorldDir = camera.position.clone().normalize();
+    const cameraWorldDir = camera.position.clone().sub(earthGroup.position).normalize();
     const tempMarkerPos = new THREE.Vector3();
     const timeNow = Date.now() * 0.003;
 
     hotelMarkers.forEach((m) => {
       m.getWorldPosition(tempMarkerPos);
-      const markerDir = tempMarkerPos.clone().normalize();
+      const markerDir = tempMarkerPos.clone().sub(earthGroup.position).normalize();
       const dot = markerDir.dot(cameraWorldDir);
 
       // Markers on the back of the globe (facing away from camera) are hidden

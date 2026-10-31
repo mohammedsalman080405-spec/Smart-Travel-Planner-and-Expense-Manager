@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // Deep Luxury Navy Palette
-  static const Color darkNavy = Color(0xFF080E1E);
-  static const Color surfaceNavy = Color(0xFF0F1A30);
-  static const Color cardNavy = Color(0xFF162544);
-  static const Color cardNavyHover = Color(0xFF1E325C);
-  static const Color borderNavy = Color(0xFF243B6B);
+  // Pure Black & Deep Space Palette
+  static const Color pureBlack = Color(0xFF000000);
+  static const Color darkNavy = Color(0xFF000000); // Pure Black as requested
+  static const Color surfaceNavy = Color(0xFF070B14);
+  static const Color cardNavy = Color(0xFF0D172A);
+  static const Color cardNavyHover = Color(0xFF162544);
+  static const Color borderNavy = Color(0xFF1E2E4A);
 
   // Accents
   static const Color accentCyan = Color(0xFF00D2FF);

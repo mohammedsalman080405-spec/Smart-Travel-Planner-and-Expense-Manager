@@ -120,26 +120,26 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
             width: 580,
             constraints: const BoxConstraints(maxWidth: 620),
             decoration: BoxDecoration(
-              color: const Color(0xFF131F38).withOpacity(0.92),
+              color: const Color(0xFF091020).withOpacity(0.82),
               borderRadius: BorderRadius.circular(32),
-              border: Border.all(color: AppTheme.borderNavy.withOpacity(0.8), width: 1.5),
+              border: Border.all(color: AppTheme.accentCyan.withOpacity(0.35), width: 1.2),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
+                  color: Colors.black.withOpacity(0.6),
                   blurRadius: 24,
                   offset: const Offset(0, 8),
                 ),
                 BoxShadow(
-                  color: AppTheme.accentCyan.withOpacity(0.08),
+                  color: AppTheme.accentCyan.withOpacity(0.16),
                   blurRadius: 18,
-                  spreadRadius: 2,
+                  spreadRadius: 1,
                 )
               ],
             ),
             child: Row(
               children: [
                 const SizedBox(width: 20),
-                const Icon(Icons.travel_explore, color: AppTheme.accentCyan, size: 24),
+                const Icon(Icons.search, color: AppTheme.accentCyan, size: 23),
                 const SizedBox(width: 14),
                 Expanded(
                   child: PointerInterceptor(
