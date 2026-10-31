@@ -10,6 +10,17 @@ class AppTheme {
   static const Color cardNavyHover = Color(0xFF162544);
   static const Color borderNavy = Color(0xFF1E2E4A);
 
+  // Premium Black & Electric Cyan Theme Palette (Exact User Specifications)
+  static const Color primaryBlack = Color(0xFF000000);
+  static const Color secondaryBlack = Color(0xFF080808);
+  static const Color cardBlack = Color(0xFF111111);
+  static const Color glassSurface = Color(0xFF161616);
+  static const Color darkBorder = Color(0xFF303030);
+  static const Color textPrimaryWhite = Color(0xFFFFFFFF);
+  static const Color textSecondaryGrey = Color(0xFFB3B3B3);
+  static const Color cyanAccent = Color(0xFF00D9FF);
+  static const Color electricCyan = Color(0xFF00BFFF);
+
   // Accents
   static const Color accentCyan = Color(0xFF00D2FF);
   static const Color accentBlue = Color(0xFF3B82F6);

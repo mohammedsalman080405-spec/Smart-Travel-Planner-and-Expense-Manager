@@ -13,6 +13,11 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   AuthProvider() {
     checkAuthStatus();
   }
