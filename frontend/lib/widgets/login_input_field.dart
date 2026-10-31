@@ -57,81 +57,132 @@ class _LoginInputFieldState extends State<LoginInputField> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0E131F).withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _isFocused
-              ? AppTheme.cyanAccent
-              : const Color(0xFF263242).withValues(alpha: 0.8),
-          width: _isFocused ? 1.4 : 1.0,
-        ),
-        boxShadow: _isFocused
-            ? [
-                BoxShadow(
-                  color: AppTheme.cyanAccent.withValues(alpha: 0.2),
-                  blurRadius: 10,
-                  offset: const Offset(0, 1),
+    return FormField<String>(
+      initialValue: widget.controller.text,
+      validator: widget.validator,
+      builder: (FormFieldState<String> state) {
+        final hasError = state.hasError;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0A0F19).withValues(alpha: 0.90),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: hasError
+                      ? const Color(0xFFFF4D4D)
+                      : _isFocused
+                          ? AppTheme.cyanAccent
+                          : const Color(0xFF222D3E),
+                  width: _isFocused ? 1.4 : 1.0,
                 ),
-              ]
-            : [],
-      ),
-      child: TextFormField(
-        controller: widget.controller,
-        focusNode: _internalFocusNode,
-        obscureText: widget.isPassword ? _obscureText : false,
-        keyboardType: widget.keyboardType,
-        validator: widget.validator,
-        onFieldSubmitted: widget.onFieldSubmitted,
-        style: const TextStyle(
-          color: AppTheme.textPrimaryWhite,
-          fontSize: 14.5,
-          fontWeight: FontWeight.w500,
-        ),
-        cursorColor: AppTheme.cyanAccent,
-        decoration: InputDecoration(
-          hintText: widget.hintText,
-          hintStyle: TextStyle(
-            color: const Color(0xFF7A8B9E).withValues(alpha: 0.9),
-            fontSize: 14.0,
-            fontWeight: FontWeight.w400,
-          ),
-          prefixIcon: Icon(
-            widget.prefixIcon,
-            color: _isFocused
-                ? AppTheme.cyanAccent
-                : const Color(0xFF7A8B9E),
-            size: 19,
-          ),
-          suffixIcon: widget.isPassword
-              ? IconButton(
-                  icon: Icon(
-                    _obscureText
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    color: _isFocused
-                        ? AppTheme.cyanAccent
-                        : const Color(0xFF7A8B9E),
-                    size: 19,
+                boxShadow: _isFocused
+                    ? [
+                        BoxShadow(
+                          color: AppTheme.cyanAccent.withValues(alpha: 0.22),
+                          blurRadius: 10,
+                          offset: const Offset(0, 1),
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Row(
+                children: [
+                  // Centered Prefix Icon
+                  SizedBox(
+                    width: 44,
+                    height: 48,
+                    child: Icon(
+                      widget.prefixIcon,
+                      color: _isFocused
+                          ? AppTheme.cyanAccent
+                          : const Color(0xFF7A8B9E),
+                      size: 19,
+                    ),
                   ),
-                  onPressed: () {
-                    setState(() {
-                      _obscureText = !_obscureText;
-                    });
-                  },
-                )
-              : null,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-          errorStyle: const TextStyle(
-            color: Color(0xFFFF5252),
-            fontSize: 12,
-            height: 1.0,
-          ),
-        ),
-      ),
+
+                  // Editable Text Area
+                  Expanded(
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: _internalFocusNode,
+                      obscureText: widget.isPassword ? _obscureText : false,
+                      keyboardType: widget.keyboardType,
+                      onSubmitted: widget.onFieldSubmitted,
+                      onChanged: (val) {
+                        if (state.hasError) {
+                          state.didChange(val);
+                        }
+                      },
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      cursorColor: AppTheme.cyanAccent,
+                      decoration: InputDecoration(
+                        hintText: widget.hintText,
+                        hintStyle: TextStyle(
+                          color: const Color(0xFF758597).withValues(alpha: 0.9),
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+
+                  // Password Visibility Toggle Icon (if applicable)
+                  if (widget.isPassword)
+                    SizedBox(
+                      width: 44,
+                      height: 48,
+                      child: IconButton(
+                        icon: Icon(
+                          _obscureText
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          color: _isFocused
+                              ? AppTheme.cyanAccent
+                              : const Color(0xFF7A8B9E),
+                          size: 19,
+                        ),
+                        splashRadius: 18,
+                        onPressed: () {
+                          setState(() {
+                            _obscureText = !_obscureText;
+                          });
+                        },
+                      ),
+                    )
+                  else
+                    const SizedBox(width: 8),
+                ],
+              ),
+            ),
+
+            if (hasError)
+              Padding(
+                padding: const EdgeInsets.only(left: 4, top: 4),
+                child: Text(
+                  state.errorText ?? '',
+                  style: const TextStyle(
+                    color: Color(0xFFFF5252),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

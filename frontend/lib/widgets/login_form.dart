@@ -83,29 +83,29 @@ class _LoginFormCardState extends State<LoginFormCard> {
     final authProvider = context.watch<AuthProvider>();
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(20),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
-          width: 440,
-          padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 38),
+          width: 375,
+          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 26),
           decoration: BoxDecoration(
-            color: const Color(0xFF080C14).withValues(alpha: 0.88),
-            borderRadius: BorderRadius.circular(24),
+            color: const Color(0xFF070B13).withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: AppTheme.cyanAccent.withValues(alpha: 0.35),
+              color: AppTheme.cyanAccent.withValues(alpha: 0.38),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: AppTheme.cyanAccent.withValues(alpha: 0.18),
-                blurRadius: 40,
-                spreadRadius: 2,
+                color: AppTheme.cyanAccent.withValues(alpha: 0.20),
+                blurRadius: 28,
+                spreadRadius: 1,
               ),
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.8),
-                blurRadius: 30,
-                offset: const Offset(0, 12),
+                color: Colors.black.withValues(alpha: 0.85),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
@@ -114,22 +114,22 @@ class _LoginFormCardState extends State<LoginFormCard> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 1. Top Airplane Icon
+                // 1. Top Airplane Brand Icon
                 Container(
-                  width: 54,
-                  height: 54,
+                  width: 46,
+                  height: 46,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF00D9FF), Color(0xFF0080FF)],
+                      colors: [Color(0xFF00D9FF), Color(0xFF0075FF)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(13),
                     boxShadow: [
                       BoxShadow(
                         color: AppTheme.cyanAccent.withValues(alpha: 0.5),
-                        blurRadius: 18,
-                        offset: const Offset(0, 4),
+                        blurRadius: 14,
+                        offset: const Offset(0, 3),
                       ),
                     ],
                   ),
@@ -139,58 +139,58 @@ class _LoginFormCardState extends State<LoginFormCard> {
                       child: const Icon(
                         Icons.flight,
                         color: Colors.white,
-                        size: 30,
+                        size: 25,
                       ),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-                // 2. Title & Subtitle
+                // 2. Heading & Subtitle
                 const Text(
                   'SMART TRAVEL',
                   style: TextStyle(
-                    color: AppTheme.textPrimaryWhite,
-                    fontSize: 22,
+                    color: Colors.white,
+                    fontSize: 19,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.1,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 5),
                 Text(
-                  'Sign in to continue your journey',
+                  'Sign in to continue your travel journey',
                   style: TextStyle(
-                    color: AppTheme.textSecondaryGrey.withValues(alpha: 0.9),
-                    fontSize: 13.5,
+                    color: const Color(0xFF8E9BAE),
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w400,
-                    letterSpacing: 0.2,
+                    letterSpacing: 0.15,
                   ),
                 ),
 
-                const SizedBox(height: 28),
+                const SizedBox(height: 20),
 
                 // Error Message Pill (if any)
                 if (authProvider.errorMessage != null) ...[
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    margin: const EdgeInsets.only(bottom: 18),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    margin: const EdgeInsets.only(bottom: 14),
                     decoration: BoxDecoration(
                       color: const Color(0xFF2D1016),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: const Color(0xFFFF4D4D).withValues(alpha: 0.6)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: Color(0xFFFF5252), size: 18),
-                        const SizedBox(width: 10),
+                        const Icon(Icons.error_outline, color: Color(0xFFFF5252), size: 16),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             authProvider.errorMessage!,
                             style: const TextStyle(
                               color: Color(0xFFFF9E9E),
-                              fontSize: 12.5,
+                              fontSize: 12.0,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -217,9 +217,9 @@ class _LoginFormCardState extends State<LoginFormCard> {
                   },
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-                // 4. Password Input Field
+                // 4. Password Input Field (Identical dimensions and styling)
                 LoginInputField(
                   controller: _passCtrl,
                   hintText: 'Password',
@@ -237,9 +237,9 @@ class _LoginFormCardState extends State<LoginFormCard> {
                   },
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
 
-                // 5. Remember Me & Forgot Password Row
+                // 5. Remember Me & Forgot Password on the SAME horizontal line
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -253,8 +253,8 @@ class _LoginFormCardState extends State<LoginFormCard> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             SizedBox(
-                              width: 18,
-                              height: 18,
+                              width: 17,
+                              height: 17,
                               child: Checkbox(
                                 value: _rememberMe,
                                 onChanged: (val) => setState(() => _rememberMe = val ?? false),
@@ -267,12 +267,12 @@ class _LoginFormCardState extends State<LoginFormCard> {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 7),
                             const Text(
                               'Remember me',
                               style: TextStyle(
                                 color: AppTheme.cyanAccent,
-                                fontSize: 13.0,
+                                fontSize: 12.5,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -291,7 +291,7 @@ class _LoginFormCardState extends State<LoginFormCard> {
                           'Forgot password?',
                           style: TextStyle(
                             color: AppTheme.cyanAccent,
-                            fontSize: 13.0,
+                            fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -300,9 +300,9 @@ class _LoginFormCardState extends State<LoginFormCard> {
                   ],
                 ),
 
-                const SizedBox(height: 22),
+                const SizedBox(height: 18),
 
-                // 6. Sign In CTA Button
+                // 6. Sign In CTA Button (Full width)
                 MouseRegion(
                   onEnter: (_) => setState(() => _isButtonHovered = true),
                   onExit: (_) => setState(() => _isButtonHovered = false),
@@ -312,7 +312,7 @@ class _LoginFormCardState extends State<LoginFormCard> {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 180),
                       width: double.infinity,
-                      height: 50,
+                      height: 46,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: _isButtonHovered
@@ -321,25 +321,25 @@ class _LoginFormCardState extends State<LoginFormCard> {
                           begin: Alignment.centerLeft,
                           end: Alignment.centerRight,
                         ),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                         boxShadow: [
                           BoxShadow(
                             color: AppTheme.cyanAccent.withValues(
-                              alpha: _isButtonHovered ? 0.6 : 0.4,
+                              alpha: _isButtonHovered ? 0.55 : 0.40,
                             ),
-                            blurRadius: _isButtonHovered ? 22 : 16,
-                            offset: const Offset(0, 3),
+                            blurRadius: _isButtonHovered ? 20 : 14,
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
                       child: Center(
                         child: authProvider.isLoading
                             ? const SizedBox(
-                                width: 22,
-                                height: 22,
+                                width: 20,
+                                height: 20,
                                 child: CircularProgressIndicator(
                                   color: Colors.white,
-                                  strokeWidth: 2.2,
+                                  strokeWidth: 2.0,
                                 ),
                               )
                             : Row(
@@ -349,16 +349,16 @@ class _LoginFormCardState extends State<LoginFormCard> {
                                     'Sign In',
                                     style: TextStyle(
                                       color: Colors.white,
-                                      fontSize: 15.5,
+                                      fontSize: 15.0,
                                       fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.4,
+                                      letterSpacing: 0.3,
                                     ),
                                   ),
                                   SizedBox(width: 8),
                                   Icon(
                                     Icons.arrow_forward_rounded,
                                     color: Colors.white,
-                                    size: 19,
+                                    size: 18,
                                   ),
                                 ],
                               ),
@@ -367,7 +367,7 @@ class _LoginFormCardState extends State<LoginFormCard> {
                   ),
                 ),
 
-                const SizedBox(height: 26),
+                const SizedBox(height: 20),
 
                 // 7. Divider: OR CONTINUE WITH
                 Row(
@@ -375,40 +375,40 @@ class _LoginFormCardState extends State<LoginFormCard> {
                     Expanded(
                       child: Container(
                         height: 1,
-                        color: const Color(0xFF263242).withValues(alpha: 0.8),
+                        color: const Color(0xFF222C3D).withValues(alpha: 0.8),
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Text(
                         'OR CONTINUE WITH',
                         style: TextStyle(
-                          color: const Color(0xFF7A8B9E).withValues(alpha: 0.9),
-                          fontSize: 11.5,
+                          color: const Color(0xFF6E7E91),
+                          fontSize: 11.0,
                           fontWeight: FontWeight.w600,
-                          letterSpacing: 1.2,
+                          letterSpacing: 1.1,
                         ),
                       ),
                     ),
                     Expanded(
                       child: Container(
                         height: 1,
-                        color: const Color(0xFF263242).withValues(alpha: 0.8),
+                        color: const Color(0xFF222C3D).withValues(alpha: 0.8),
                       ),
                     ),
                   ],
                 ),
 
-                const SizedBox(height: 22),
+                const SizedBox(height: 16),
 
-                // 8. Social Login Buttons Row: Google & Apple
+                // 8. Social Login Buttons Row: Google & Apple (Equal widths and heights)
                 Row(
                   children: [
                     SocialLoginButton(
                       type: SocialLoginType.google,
                       onPressed: () => _showSocialNotConfigured('Google'),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     SocialLoginButton(
                       type: SocialLoginType.apple,
                       onPressed: () => _showSocialNotConfigured('Apple'),
@@ -416,7 +416,7 @@ class _LoginFormCardState extends State<LoginFormCard> {
                   ],
                 ),
 
-                const SizedBox(height: 28),
+                const SizedBox(height: 20),
 
                 // 9. Create Account Link
                 Row(
@@ -425,8 +425,8 @@ class _LoginFormCardState extends State<LoginFormCard> {
                     Text(
                       "Don't have an account?",
                       style: TextStyle(
-                        color: AppTheme.textSecondaryGrey.withValues(alpha: 0.95),
-                        fontSize: 13.5,
+                        color: const Color(0xFF8E9BAE),
+                        fontSize: 13.0,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
@@ -440,7 +440,7 @@ class _LoginFormCardState extends State<LoginFormCard> {
                           'Create Account',
                           style: TextStyle(
                             color: AppTheme.cyanAccent,
-                            fontSize: 13.5,
+                            fontSize: 13.0,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
