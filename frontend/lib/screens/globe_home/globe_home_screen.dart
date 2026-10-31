@@ -8,10 +8,12 @@ import '../../providers/auth_provider.dart';
 import '../../providers/globe_provider.dart';
 import '../../providers/hotel_provider.dart';
 import '../../services/destination_service.dart';
-import '../../services/hotel_service.dart';
 import '../../widgets/destination_search_bar.dart';
 import '../../widgets/hotel_workspace_tab.dart';
+import '../../widgets/hyderabad_discovery_map.dart';
 import '../../widgets/interactive_globe.dart';
+
+enum DiscoveryViewMode { map, list, globe }
 
 class GlobeHomeScreen extends StatefulWidget {
   final String? initialSearch;
@@ -23,31 +25,15 @@ class GlobeHomeScreen extends StatefulWidget {
 }
 
 class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
+  DiscoveryViewMode _viewMode = DiscoveryViewMode.map;
+
   @override
   void initState() {
     super.initState();
-    if (widget.initialSearch != null && widget.initialSearch!.trim().isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _runSearch(widget.initialSearch!.trim());
-      });
-    } else if (widget.initialHotelId != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        try {
-          final hotel = await HotelService.getHotelDetails(widget.initialHotelId!);
-          if (mounted) {
-            context.read<GlobeProvider>().setCoordinates(hotel.latitude, hotel.longitude, animate: true);
-            await context.read<HotelProvider>().searchHotels(
-              latitude: hotel.latitude,
-              longitude: hotel.longitude,
-              destination: hotel.city,
-            );
-            if (mounted) {
-              context.read<HotelProvider>().selectHotel(hotel);
-            }
-          }
-        } catch (_) {}
-      });
-    }
+    // Default to search Hyderabad and load 9 verified hotels immediately
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _runSearch(widget.initialSearch?.trim().isNotEmpty == true ? widget.initialSearch!.trim() : 'Hyderabad');
+    });
   }
 
   Future<void> _runSearch(String query) async {
@@ -83,10 +69,6 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
     final authProvider = context.watch<AuthProvider>();
     final selectedHotel = hotelProvider.selectedHotel;
     final screenWidth = MediaQuery.sizeOf(context).width;
-    // Responsive vertical positioning:
-    // Large desktop (>= 1180): top: 48 (shifted ~48px upward from original 96)
-    // Medium / Laptop (780 to 1179): top: 58 (shifted ~38px upward, ensuring zero header overlap)
-    // Compact / Mobile (< 780): top: 68 (shifted ~28px upward, clear of mobile app bar)
     final isDesktop = screenWidth >= 780;
 
     return Scaffold(
@@ -95,20 +77,42 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
         fit: StackFit.expand,
         children: [
           // ==========================================
-          // LAYER 1: BASE HOMEPAGE (Globe, Sidebar, Status & Search)
+          // LAYER 1: BASE HOMEPAGE (Interactive Satellite Map / Globe, Sidebar & Controls)
           // ==========================================
 
-          // 1a. Interactive 3D Earth Globe (Always 100% full screen background, shifted right & down)
-          Positioned.fill(
-            child: InteractiveGlobe(
-              hotels: hotelProvider.hotels,
-              selectedHotel: selectedHotel,
-              isBlurred: hotelProvider.hasOpenTabs,
-              onHotelSelected: (hotel) {
-                hotelProvider.selectHotel(hotel);
-              },
+          // 1a. Interactive Map / Globe View (Fullscreen behind sidebar)
+          if (_viewMode == DiscoveryViewMode.map)
+            Positioned(
+              top: 0,
+              bottom: 0,
+              left: isDesktop ? 175 : 0,
+              right: 0,
+              child: HyderabadDiscoveryMap(
+                isBlurred: hotelProvider.hasOpenTabs,
+                onHotelSelected: (hotel) {
+                  hotelProvider.selectHotel(hotel);
+                },
+              ),
+            )
+          else if (_viewMode == DiscoveryViewMode.globe)
+            Positioned.fill(
+              child: InteractiveGlobe(
+                hotels: hotelProvider.hotels,
+                selectedHotel: selectedHotel,
+                isBlurred: hotelProvider.hasOpenTabs,
+                onHotelSelected: (hotel) {
+                  hotelProvider.selectHotel(hotel);
+                },
+              ),
+            )
+          else
+            Positioned(
+              top: 80,
+              bottom: 0,
+              left: isDesktop ? 195 : 16,
+              right: 16,
+              child: _buildHotelCardsListView(context, hotelProvider),
             ),
-          ),
 
           // 1b. Left Vertical Sidebar (Desktop / Tablet)
           if (isDesktop)
@@ -116,7 +120,7 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
               top: 0,
               bottom: 0,
               left: 0,
-              width: 240,
+              width: 175,
               child: PointerInterceptor(
                 child: _buildLeftSidebar(context, authProvider, hotelProvider),
               ),
@@ -133,45 +137,44 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
               ),
             ),
 
-          // 1d. Destination Search Bar (Centered at top of main area)
+          // 1d. Destination Search Bar (Centered at top between sidebar and toggle)
           Positioned(
-            top: isDesktop ? 24 : 76,
-            left: isDesktop ? 240 : 0,
-            right: 0,
+            top: isDesktop ? 16 : 76,
+            left: isDesktop ? 175 : 0,
+            right: isDesktop ? 175 : 0,
             child: Center(
               child: PointerInterceptor(
                 child: DestinationSearchBar(
+                  initialValue: 'Hyderabad',
                   onDestinationSelected: (query, lat, lng) {
-                    // Globe updates automatically via Provider
+                    // Search updates hotels and coordinates
                   },
                 ),
               ),
             ),
           ),
 
-          // 1e. Hotel Status Indicator Pill (Positioned cleanly below search bar)
-          if (hotelProvider.hotels.isNotEmpty)
+          // 1e. Top-Right Map / List Toggle
+          if (isDesktop)
+            Positioned(
+              top: 16,
+              right: 20,
+              child: PointerInterceptor(
+                child: _buildTopRightToggle(),
+              ),
+            ),
+
+          // 1f. Hotel Status Indicator Pill (Shown in globe mode)
+          if (_viewMode == DiscoveryViewMode.globe && hotelProvider.hotels.isNotEmpty)
             Positioned(
               top: isDesktop ? 88 : 140,
-              left: isDesktop ? 264 : 20,
+              left: isDesktop ? 195 : 20,
               child: PointerInterceptor(
                 child: _buildHotelStatusIndicator(context, hotelProvider),
               ),
             ),
 
-          // 1f. Left-side Hotel Cards List (Visible in background matching reference image)
-          if (isDesktop && hotelProvider.hotels.isNotEmpty)
-            Positioned(
-              top: 140,
-              bottom: 24,
-              left: 256,
-              width: 220,
-              child: PointerInterceptor(
-                child: _buildHotelCardsList(context, hotelProvider),
-              ),
-            ),
-
-          // 1f. Loading indicator overlay during hotel search
+          // 1g. Loading indicator overlay during hotel search
           if (hotelProvider.isLoading)
             Positioned(
               bottom: 36,
@@ -179,11 +182,11 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF091224).withOpacity(0.95),
+                  color: const Color(0xFF091224).withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(color: AppTheme.accentCyan, width: 1.2),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 16),
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 16),
                   ],
                 ),
                 child: const Row(
@@ -196,7 +199,7 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                     ),
                     SizedBox(width: 12),
                     Text(
-                      'Discovering verified hotels on globe...',
+                      'Discovering verified hotels...',
                       style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
                     ),
                   ],
@@ -225,7 +228,7 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                         child: BackdropFilter(
                           filter: ImageFilter.blur(sigmaX: 10.0 * value, sigmaY: 10.0 * value),
                           child: Container(
-                            color: Colors.black.withOpacity(0.55 * value),
+                            color: Colors.black.withValues(alpha: 0.55 * value),
                           ),
                         ),
                       ),
@@ -242,7 +245,7 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
             Positioned(
               top: 0,
               bottom: 0,
-              left: isDesktop ? 240 : 0,
+              left: isDesktop ? 175 : 0,
               right: 0,
               child: PointerInterceptor(
                 child: const HotelWorkspaceTab(),
@@ -253,16 +256,289 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
     );
   }
 
+  // Top-Right Toggle: Unified pill holding [ Map ] and [ List ] matching visual reference
+  Widget _buildTopRightToggle() {
+    final isMap = _viewMode == DiscoveryViewMode.map;
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFF050E1B).withValues(alpha: 0.90),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFF1E2E4A), width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.6),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Map Button
+          InkWell(
+            onTap: () {
+              setState(() {
+                _viewMode = DiscoveryViewMode.map;
+              });
+            },
+            borderRadius: BorderRadius.circular(18),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: isMap ? const Color(0xFF091F38) : Colors.transparent,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isMap ? AppTheme.accentCyan : Colors.transparent,
+                  width: isMap ? 1.4 : 0.0,
+                ),
+                boxShadow: isMap
+                    ? [
+                        BoxShadow(
+                          color: AppTheme.accentCyan.withValues(alpha: 0.35),
+                          blurRadius: 8,
+                          spreadRadius: 0.5,
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.map_outlined,
+                    size: 16,
+                    color: isMap ? AppTheme.accentCyan : Colors.white70,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Map',
+                    style: TextStyle(
+                      color: isMap ? Colors.white : Colors.white70,
+                      fontSize: 12.5,
+                      fontWeight: isMap ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // List Button
+          InkWell(
+            onTap: () {
+              setState(() {
+                _viewMode = DiscoveryViewMode.list;
+              });
+            },
+            borderRadius: BorderRadius.circular(18),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: !isMap ? const Color(0xFF091F38) : Colors.transparent,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: !isMap ? AppTheme.accentCyan : Colors.transparent,
+                  width: !isMap ? 1.4 : 0.0,
+                ),
+                boxShadow: !isMap
+                    ? [
+                        BoxShadow(
+                          color: AppTheme.accentCyan.withValues(alpha: 0.35),
+                          blurRadius: 8,
+                          spreadRadius: 0.5,
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.format_list_bulleted,
+                    size: 16,
+                    color: !isMap ? AppTheme.accentCyan : Colors.white70,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'List',
+                    style: TextStyle(
+                      color: !isMap ? Colors.white : Colors.white70,
+                      fontSize: 12.5,
+                      fontWeight: !isMap ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Full-page Hotel Cards List View when 'List' mode is toggled
+  Widget _buildHotelCardsListView(BuildContext context, HotelProvider hotelProvider) {
+    if (hotelProvider.hotels.isEmpty) {
+      return const Center(
+        child: Text(
+          'No hotels found for this destination.',
+          style: TextStyle(color: Colors.white70, fontSize: 16),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth > 1100 ? 3 : (constraints.maxWidth > 700 ? 2 : 1);
+
+        return GridView.builder(
+          padding: const EdgeInsets.only(top: 10, bottom: 40),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: 1.35,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+          ),
+          itemCount: hotelProvider.hotels.length,
+          itemBuilder: (context, idx) {
+            final hotel = hotelProvider.hotels[idx];
+            return InkWell(
+              onTap: () => hotelProvider.selectHotel(hotel),
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF070E1A).withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF1E2E4A), width: 1.2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 6,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+                            child: Image.network(
+                              hotel.exteriorImageUrl ?? '',
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => Container(
+                                color: const Color(0xFF0D172E),
+                                child: const Icon(Icons.hotel, color: AppTheme.accentCyan, size: 36),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 10,
+                            right: 10,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.75),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.5)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.star, color: Color(0xFFFFB800), size: 13),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    hotel.starRating.toStringAsFixed(1),
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      flex: 4,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              hotel.hotelName.replaceAll(' (Demo)', ''),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  '₹ ${hotel.startingPrice.toStringAsFixed(0)} / night',
+                                  style: const TextStyle(
+                                    color: AppTheme.accentCyan,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.accentCyan.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: AppTheme.accentCyan, width: 1),
+                                  ),
+                                  child: const Text(
+                                    'View Details',
+                                    style: TextStyle(
+                                      color: AppTheme.accentCyan,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   // Left Vertical Sidebar matching the exact visual reference
   Widget _buildLeftSidebar(BuildContext context, AuthProvider authProvider, HotelProvider hotelProvider) {
     return Container(
-      width: 240,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      width: 175,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
       decoration: BoxDecoration(
-        color: const Color(0xFF060B17).withOpacity(0.88),
+        color: const Color(0xFF040812).withValues(alpha: 0.94),
         border: Border(
           right: BorderSide(
-            color: const Color(0xFF1E2E4A).withOpacity(0.45),
+            color: const Color(0xFF1E2E4A).withValues(alpha: 0.45),
             width: 1.0,
           ),
         ),
@@ -270,38 +546,43 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Branding (Clickable: returns to full globe view, closes workspace)
+          // Branding (Clickable: returns to full discovery map view)
           InkWell(
             onTap: () {
               hotelProvider.closeAllTabs();
-              context.read<GlobeProvider>().resetView();
+              setState(() {
+                _viewMode = DiscoveryViewMode.map;
+              });
             },
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
               child: Row(
                 children: [
                   Container(
-                    width: 42,
-                    height: 42,
+                    width: 34,
+                    height: 34,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color(0xFF00D2FF), Color(0xFF0072FF)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
-                          color: AppTheme.accentCyan.withOpacity(0.45),
-                          blurRadius: 12,
+                          color: AppTheme.accentCyan.withValues(alpha: 0.45),
+                          blurRadius: 10,
                           offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.public, color: Colors.white, size: 26),
+                    child: Transform.rotate(
+                      angle: -0.785398, // -45 degrees airplane matching brand
+                      child: const Icon(Icons.flight, color: Colors.white, size: 18),
+                    ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 9),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -312,19 +593,19 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,
-                            fontSize: 16,
-                            letterSpacing: 1.0,
+                            fontSize: 13.5,
+                            letterSpacing: 0.8,
                             height: 1.1,
                           ),
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 2),
                         Text(
-                          '3D Luxury Globe &\nExpense Manager',
+                          '3D Luxury Travel Planner',
                           style: TextStyle(
-                            color: AppTheme.accentCyan.withOpacity(0.95),
-                            fontSize: 11,
+                            color: AppTheme.accentCyan.withValues(alpha: 0.95),
+                            fontSize: 9.0,
                             fontWeight: FontWeight.w500,
-                            letterSpacing: 0.3,
+                            letterSpacing: 0.2,
                             height: 1.15,
                           ),
                         ),
@@ -336,20 +617,22 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
             ),
           ),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
 
-          // 0. Explore (Active when on globe)
+          // 0. Explore (Active when on discovery map)
           _SidebarNavButton(
-            icon: Icons.explore_outlined,
+            icon: Icons.location_on_outlined,
             label: 'Explore',
-            isActive: !hotelProvider.hasOpenTabs,
+            isActive: !hotelProvider.hasOpenTabs && _viewMode == DiscoveryViewMode.map,
             onTap: () {
               hotelProvider.closeAllTabs();
-              context.read<GlobeProvider>().resetView();
+              setState(() {
+                _viewMode = DiscoveryViewMode.map;
+              });
             },
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           // 1. My Trips
           _SidebarNavButton(
@@ -359,17 +642,17 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
             onTap: () => context.push('/trips'),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           // 2. Bookings
           _SidebarNavButton(
-            icon: Icons.bookmark_border,
+            icon: Icons.calendar_today_outlined,
             label: 'Bookings',
             isActive: false,
             onTap: () => context.push('/bookings'),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           // 3. Expenses
           _SidebarNavButton(
@@ -379,12 +662,12 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
             onTap: () => context.push('/trips'),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          // 4. Logout / Sign In
+          // 4. Logout / Sign In (Label matches reference 'Logout')
           _SidebarNavButton(
-            icon: authProvider.isAuthenticated ? Icons.logout_rounded : Icons.login_rounded,
-            label: authProvider.isAuthenticated ? 'Logout' : 'Sign In',
+            icon: Icons.logout_rounded,
+            label: 'Logout',
             isActive: false,
             onTap: () async {
               if (authProvider.isAuthenticated) {
@@ -405,25 +688,28 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF091224).withOpacity(0.85),
+        color: const Color(0xFF091224).withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF1E2E4A).withOpacity(0.7)),
+        border: Border.all(color: const Color(0xFF1E2E4A).withValues(alpha: 0.7)),
       ),
       child: Row(
         children: [
           Container(
-            width: 32,
-            height: 32,
+            width: 30,
+            height: 30,
             decoration: BoxDecoration(
               gradient: const LinearGradient(colors: [Color(0xFF00D2FF), Color(0xFF0072FF)]),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.public, color: Colors.white, size: 20),
+            child: Transform.rotate(
+              angle: -0.785398,
+              child: const Icon(Icons.flight, color: Colors.white, size: 16),
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           const Text(
             'SMART TRAVEL',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
           ),
           const Spacer(),
           IconButton(
@@ -443,7 +729,7 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
     );
   }
 
-  // Neatly aligned status indicator for hotel count & search radius (Separated from logo)
+  // Status indicator pill for hotel count (Globe mode)
   Widget _buildHotelStatusIndicator(BuildContext context, HotelProvider hotelProvider) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
@@ -475,139 +761,15 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
           ),
           const SizedBox(width: 8),
           Text(
-            '${hotelProvider.hotels.length} Verified Hotels on Globe',
+            '${hotelProvider.hotels.length} Verified Hotels on Map',
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w600,
               fontSize: 12.5,
             ),
           ),
-          const SizedBox(width: 10),
-          Container(
-            height: 14,
-            width: 1,
-            color: AppTheme.borderNavy,
-          ),
-          const SizedBox(width: 10),
-          DropdownButtonHideUnderline(
-            child: DropdownButton<double>(
-              value: hotelProvider.searchRadiusKm,
-              dropdownColor: const Color(0xFF0D172E),
-              isDense: true,
-              icon: const Icon(Icons.arrow_drop_down, color: AppTheme.accentCyan, size: 18),
-              style: const TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.bold, fontSize: 12),
-              items: const [
-                DropdownMenuItem(value: 5.0, child: Text('5 km radius')),
-                DropdownMenuItem(value: 10.0, child: Text('10 km radius')),
-                DropdownMenuItem(value: 20.0, child: Text('20 km radius')),
-                DropdownMenuItem(value: 30.0, child: Text('30 km radius')),
-                DropdownMenuItem(value: 50.0, child: Text('50 km radius')),
-              ],
-              onChanged: (val) {
-                if (val != null) {
-                  hotelProvider.setRadius(val);
-                }
-              },
-            ),
-          ),
         ],
       ),
-    );
-  }
-
-  // Left-side column of hotel search result cards (as seen in reference image background)
-  Widget _buildHotelCardsList(BuildContext context, HotelProvider hotelProvider) {
-    return ListView.separated(
-      itemCount: hotelProvider.hotels.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (context, idx) {
-        final hotel = hotelProvider.hotels[idx];
-        final isSelected = hotelProvider.selectedHotel?.hotelId == hotel.hotelId;
-
-        return InkWell(
-          onTap: () => hotelProvider.selectHotel(hotel),
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            height: 84,
-            decoration: BoxDecoration(
-              color: const Color(0xFF070E1A).withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isSelected ? AppTheme.accentCyan : const Color(0x3300D9FF),
-                width: isSelected ? 1.5 : 0.8,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(11)),
-                  child: SizedBox(
-                    width: 72,
-                    height: 84,
-                    child: Image.network(
-                      hotel.exteriorImageUrl ?? '',
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: const Color(0xFF0D172E),
-                        child: const Icon(Icons.hotel, color: AppTheme.accentCyan, size: 24),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          hotel.hotelName.replaceAll(' (Demo)', ''),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(Icons.star, color: Color(0xFFFFB800), size: 12),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${hotel.starRating.toStringAsFixed(1)} (${hotel.reviewCount})',
-                              style: const TextStyle(color: Color(0xFF8A99AD), fontSize: 10.5),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '\$${hotel.startingPrice.toStringAsFixed(0)} / night',
-                          style: const TextStyle(
-                            color: AppTheme.accentCyan,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }
@@ -634,13 +796,14 @@ class _SidebarNavButtonState extends State<_SidebarNavButton> {
 
   @override
   Widget build(BuildContext context) {
-    final activeBg = const Color(0xFF0D2444).withValues(alpha: 0.95);
-    final hoverBg = const Color(0xFF0B1930).withValues(alpha: 0.85);
-    final idleBg = const Color(0xFF070E1E).withValues(alpha: 0.65);
+    // Inactive button has dark slate card surface matching reference
+    final activeBg = const Color(0xFF05172C).withValues(alpha: 0.95);
+    final hoverBg = const Color(0xFF0D1E35).withValues(alpha: 0.85);
+    final idleBg = const Color(0xFF070F1C).withValues(alpha: 0.85);
 
-    final activeBorder = const Color(0xFF00D2FF).withValues(alpha: 0.7);
-    final hoverBorder = const Color(0xFF00D2FF).withValues(alpha: 0.4);
-    final idleBorder = const Color(0xFF1E2E4A).withValues(alpha: 0.55);
+    final activeBorder = const Color(0xFF00D9FF);
+    final hoverBorder = const Color(0xFF00D9FF).withValues(alpha: 0.4);
+    final idleBorder = const Color(0xFF18283E);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -648,16 +811,16 @@ class _SidebarNavButtonState extends State<_SidebarNavButton> {
       cursor: SystemMouseCursors.click,
       child: InkWell(
         onTap: widget.onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10.5),
           decoration: BoxDecoration(
             color: widget.isActive
                 ? activeBg
                 : (_isHovered ? hoverBg : idleBg),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: widget.isActive
                   ? activeBorder
@@ -667,7 +830,7 @@ class _SidebarNavButtonState extends State<_SidebarNavButton> {
             boxShadow: widget.isActive
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF00D2FF).withValues(alpha: 0.22),
+                      color: const Color(0xFF00D9FF).withValues(alpha: 0.35),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),
@@ -675,7 +838,7 @@ class _SidebarNavButtonState extends State<_SidebarNavButton> {
                 : (_isHovered
                     ? [
                         BoxShadow(
-                          color: const Color(0xFF00D2FF).withValues(alpha: 0.12),
+                          color: const Color(0xFF00D9FF).withValues(alpha: 0.12),
                           blurRadius: 8,
                           offset: const Offset(0, 1),
                         ),
@@ -688,17 +851,17 @@ class _SidebarNavButtonState extends State<_SidebarNavButton> {
                 widget.icon,
                 color: widget.isActive
                     ? AppTheme.accentCyan
-                    : (_isHovered ? AppTheme.accentCyan : Colors.white70),
-                size: 20,
+                    : (_isHovered ? AppTheme.accentCyan : Colors.white),
+                size: 18,
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Text(
                 widget.label,
                 style: TextStyle(
-                  color: widget.isActive ? Colors.white : Colors.white.withValues(alpha: 0.9),
-                  fontSize: 14,
+                  color: widget.isActive ? AppTheme.accentCyan : Colors.white,
+                  fontSize: 13,
                   fontWeight: widget.isActive ? FontWeight.w700 : FontWeight.w500,
-                  letterSpacing: 0.3,
+                  letterSpacing: 0.2,
                 ),
               ),
             ],

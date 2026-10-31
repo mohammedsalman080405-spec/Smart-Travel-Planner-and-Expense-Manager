@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Smart Travel - Hyderabad Hotel Discovery Dashboard</title>
+  
+  <!-- Leaflet CSS & JS for Smooth Interactive Pan & Zoom -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #000000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      background: #000000;
+      cursor: grab;
+    }
+    #map:active {
+      cursor: grabbing;
+    }
+
+    /* Interactive Hotel Clickable Hotspot */
+    .hotel-interactive-hotspot {
+      position: absolute;
+      transform: translate(-32px, -32px);
+      cursor: pointer;
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1);
+    }
+    .hotel-interactive-hotspot:hover {
+      transform: translate(-32px, -32px) scale(1.06);
+      z-index: 9999 !important;
+    }
+
+    /* Glowing Hover Ring on the Circular Thumbnail */
+    .hotspot-circle {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      position: relative;
+    }
+    .hotspot-circle::after {
+      content: '';
+      position: absolute;
+      top: -3px;
+      left: -3px;
+      right: -3px;
+      bottom: -3px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      transition: all 0.2s ease;
+    }
+    .hotel-interactive-hotspot:hover .hotspot-circle::after {
+      border-color: #00D9FF;
+      box-shadow: 0 0 16px rgba(0, 217, 255, 0.95), 0 0 30px rgba(0, 217, 255, 0.6);
+    }
+
+    /* Hotspot Card Overlay for Clicking */
+    .hotspot-card-hitbox {
+      margin-left: 6px;
+      width: 140px;
+      height: 52px;
+      border-radius: 10px;
+      background: transparent;
+      transition: all 0.2s ease;
+    }
+    .hotel-interactive-hotspot:hover .hotspot-card-hitbox {
+      background: rgba(0, 217, 255, 0.08);
+      box-shadow: 0 0 14px rgba(0, 217, 255, 0.35);
+      border: 1px solid rgba(0, 217, 255, 0.4);
+    }
+
+    /* Central Hyderabad Charminar Pulse */
+    .hub-pulse-wrapper {
+      position: absolute;
+      width: 70px;
+      height: 70px;
+      transform: translate(-35px, -35px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    .hub-pulse-ring {
+      position: absolute;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      border: 1.8px solid rgba(0, 217, 255, 0.6);
+      animation: hubPulseAnim 2.8s ease-out infinite;
+      pointer-events: none;
+    }
+    @keyframes hubPulseAnim {
+      0% { transform: scale(0.92); opacity: 0.9; }
+      100% { transform: scale(1.65); opacity: 0; }
+    }
+
+    /* Sleek Floating Zoom Controls */
+    .custom-zoom-controls {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 800;
+    }
+    .zoom-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: rgba(7, 13, 24, 0.88);
+      border: 1px solid rgba(0, 217, 255, 0.4);
+      color: #00D9FF;
+      font-size: 18px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.7);
+      transition: all 0.15s ease;
+    }
+    .zoom-btn:hover {
+      background: rgba(0, 217, 255, 0.18);
+      border-color: #00D9FF;
+      box-shadow: 0 0 14px rgba(0, 217, 255, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <!-- Fullscreen Interactive Map -->
+  <div id="map"></div>
+
+  <!-- Zoom Controls -->
+  <div class="custom-zoom-controls">
+    <div class="zoom-btn" onclick="map.zoomIn()" title="Zoom In">+</div>
+    <div class="zoom-btn" onclick="map.zoomOut()" title="Zoom Out">−</div>
+    <div class="zoom-btn" onclick="resetView()" title="Recenter Hyderabad" style="font-size: 14px;">◎</div>
+  </div>
+
+  <script>
+    // -------------------------------------------------------------
+    // 1. DATA SPECIFICATION (Exact Pixel Coordinates in 849 x 595 Map)
+    // -------------------------------------------------------------
+    const MAP_WIDTH = 849;
+    const MAP_HEIGHT = 595;
+
+    // Hotel centers calibrated directly from reference image
+    const HOTELS_DATA = [
+      {
+        id: 31,
+        name: "Taj Krishna",
+        x: 150,
+        y: 158,
+        rating: 4.8,
+        reviews: 2340,
+        price: 210,
+        travelTime: "30 min"
+      },
+      {
+        id: 1,
+        name: "Taj Falaknuma Palace",
+        x: 388,
+        y: 156,
+        rating: 5.0,
+        reviews: 1840,
+        price: 420,
+        travelTime: "20 min"
+      },
+      {
+        id: 34,
+        name: "The Westin Hyderabad",
+        x: 661,
+        y: 188,
+        rating: 4.9,
+        reviews: 2100,
+        price: 220,
+        travelTime: "35 min"
+      },
+      {
+        id: 2,
+        name: "ITC Kohenur",
+        x: 60,
+        y: 285,
+        rating: 4.9,
+        reviews: 1260,
+        price: 240,
+        travelTime: "25 min"
+      },
+      {
+        id: 3,
+        name: "Park Hyatt Hyderabad",
+        x: 686,
+        y: 318,
+        rating: 4.8,
+        reviews: 940,
+        price: 195,
+        travelTime: "22 min"
+      },
+      {
+        id: 35,
+        name: "Novotel Hyderabad",
+        x: 86,
+        y: 389,
+        rating: 4.7,
+        reviews: 2980,
+        price: 155,
+        travelTime: "28 min"
+      },
+      {
+        id: 38,
+        name: "Leela Palace",
+        x: 669,
+        y: 450,
+        rating: 4.7,
+        reviews: 1680,
+        price: 320,
+        travelTime: "25 min"
+      },
+      {
+        id: 32,
+        name: "Trident Hyderabad",
+        x: 134,
+        y: 528,
+        rating: 4.8,
+        reviews: 1820,
+        price: 185,
+        travelTime: "Express"
+      },
+      {
+        id: 39,
+        name: "Taj Deccan",
+        x: 454,
+        y: 547,
+        rating: 4.6,
+        reviews: 1320,
+        price: 280,
+        travelTime: "40 min"
+      }
+    ];
+
+    const HUB_CENTER = { x: 412, y: 308 };
+
+    // -------------------------------------------------------------
+    // 2. INITIALIZE LEAFLET WITH L.CRS.Simple (Flat Pixel Coordinate System)
+    // -------------------------------------------------------------
+    const bounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
+
+    const map = L.map('map', {
+      crs: L.CRS.Simple,
+      minZoom: -1,
+      maxZoom: 2,
+      zoomSnap: 0.1,
+      zoomControl: false,
+      attributionControl: false,
+      maxBounds: [[-100, -100], [MAP_HEIGHT + 100, MAP_WIDTH + 100]]
+    });
+
+    // High-Resolution True Satellite Layer (Exact Reference Match)
+    const overlay = L.imageOverlay('hyderabad_satellite_ref.jpg', bounds).addTo(map);
+
+    function resetView() {
+      map.fitBounds(bounds);
+    }
+    resetView();
+
+    window.addEventListener('resize', () => {
+      map.invalidateSize();
+      resetView();
+    });
+
+    // -------------------------------------------------------------
+    // 3. CENTRAL HYDERABAD CHARMINAR HUB PULSING INTERACTIVE OVERLAY
+    // -------------------------------------------------------------
+    const hubLatLng = [MAP_HEIGHT - HUB_CENTER.y, HUB_CENTER.x];
+    const hubIcon = L.divIcon({
+      className: 'hub-pulse-div-icon',
+      html: `
+        <div class="hub-pulse-wrapper" onclick="resetView()" title="Central Hyderabad - Charminar Hub">
+          <div class="hub-pulse-ring"></div>
+        </div>
+      `,
+      iconSize: [70, 70],
+      iconAnchor: [35, 35]
+    });
+    L.marker(hubLatLng, { icon: hubIcon, zIndexOffset: 200 }).addTo(map);
+
+    // -------------------------------------------------------------
+    // 4. RENDER 9 INTERACTIVE HOTEL HOTSPOTS
+    // -------------------------------------------------------------
+    const hotelMarkers = [];
+
+    HOTELS_DATA.forEach(hotel => {
+      const latLng = [MAP_HEIGHT - hotel.y, hotel.x];
+
+      const hotspotHtml = `
+        <div class="hotel-interactive-hotspot" onclick="handleHotelSelect(${hotel.id}, '${hotel.name.replace(/'/g, "\\'")}')" title="Click to view full details for ${hotel.name}">
+          <div class="hotspot-circle"></div>
+          <div class="hotspot-card-hitbox"></div>
+        </div>
+      `;
+
+      const icon = L.divIcon({
+        className: 'hotel-hotspot-div-icon',
+        html: hotspotHtml,
+        iconSize: [210, 64],
+        iconAnchor: [32, 32]
+      });
+
+      const marker = L.marker(latLng, { icon: icon, zIndexOffset: 500 }).addTo(map);
+      marker.hotelData = hotel;
+      hotelMarkers.push(marker);
+    });
+
+    // -------------------------------------------------------------
+    // 5. TWO-WAY INTEROP BRIDGE WITH FLUTTER WEB
+    // -------------------------------------------------------------
+    function handleHotelSelect(hotelId, hotelName) {
+      console.log('[Map] Hotel clicked:', hotelId, hotelName);
+
+      const payload = JSON.stringify({
+        type: 'HOTEL_CLICKED',
+        hotelId: hotelId,
+        hotelName: hotelName
+      });
+
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(payload, '*');
+      }
+      window.postMessage(payload, '*');
+    }
+
+    window.addEventListener('message', (event) => {
+      let data = event.data;
+      if (typeof data === 'string') {
+        try { data = JSON.parse(data); } catch (_) { return; }
+      }
+      if (!data) return;
+
+      if (data.type === 'FOCUS_HOTEL') {
+        const found = hotelMarkers.find(m => m.hotelData.id === data.hotelId);
+        if (found) {
+          const target = [MAP_HEIGHT - found.hotelData.y, found.hotelData.x];
+          map.setView(target, 0.8, { animate: true });
+        }
+      } else if (data.type === 'RECENTER') {
+        resetView();
+      }
+    });
+
+    setTimeout(() => {
+      if (window.parent) {
+        window.parent.postMessage(JSON.stringify({ type: 'MAP_READY' }), '*');
+      }
+    }, 400);
+  </script>
+</body>
+</html>

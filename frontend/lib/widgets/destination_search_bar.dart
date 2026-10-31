@@ -7,16 +7,21 @@ import '../providers/hotel_provider.dart';
 import '../services/destination_service.dart';
 
 class DestinationSearchBar extends StatefulWidget {
+  final String? initialValue;
   final Function(String query, double lat, double lng)? onDestinationSelected;
 
-  const DestinationSearchBar({super.key, this.onDestinationSelected});
+  const DestinationSearchBar({
+    super.key,
+    this.initialValue = 'Hyderabad',
+    this.onDestinationSelected,
+  });
 
   @override
   State<DestinationSearchBar> createState() => _DestinationSearchBarState();
 }
 
 class _DestinationSearchBarState extends State<DestinationSearchBar> {
-  final TextEditingController _controller = TextEditingController();
+  late final TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
   bool _isSearching = false;
   List<Map<String, dynamic>> _suggestions = [];
@@ -25,6 +30,7 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
   @override
   void initState() {
     super.initState();
+    _controller = TextEditingController(text: widget.initialValue ?? 'Hyderabad');
     _focusNode.addListener(() {
       debugPrint('[Search] Search field focused: ${_focusNode.hasFocus}');
     });
@@ -83,6 +89,7 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
           longitude: lng,
           destination: name,
         );
+        if (!mounted) return;
         final hotelCount = context.read<HotelProvider>().hotels.length;
         debugPrint('[Search] Hotel marker data received: count=$hotelCount');
 
@@ -117,30 +124,30 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
         children: [
           // Search Input Bar (Sleek floating capsule)
           Container(
-            width: 580,
-            constraints: const BoxConstraints(maxWidth: 620),
+            width: 380,
+            constraints: const BoxConstraints(maxWidth: 420),
             decoration: BoxDecoration(
-              color: const Color(0xFF091020).withOpacity(0.82),
-              borderRadius: BorderRadius.circular(32),
-              border: Border.all(color: AppTheme.accentCyan.withOpacity(0.35), width: 1.2),
+              color: const Color(0xFF070E1A).withValues(alpha: 0.90),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: AppTheme.cyanAccent.withValues(alpha: 0.45), width: 1.2),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.6),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
+                  color: Colors.black.withValues(alpha: 0.7),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
                 ),
                 BoxShadow(
-                  color: AppTheme.accentCyan.withOpacity(0.16),
-                  blurRadius: 18,
+                  color: AppTheme.cyanAccent.withValues(alpha: 0.18),
+                  blurRadius: 14,
                   spreadRadius: 1,
                 )
               ],
             ),
             child: Row(
               children: [
-                const SizedBox(width: 20),
-                const Icon(Icons.search, color: AppTheme.accentCyan, size: 23),
                 const SizedBox(width: 14),
+                const Icon(Icons.search, color: AppTheme.cyanAccent, size: 20),
+                const SizedBox(width: 10),
                 Expanded(
                   child: PointerInterceptor(
                     child: Material(
@@ -151,23 +158,23 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
                         enabled: true,
                         readOnly: false,
                         autofocus: false,
-                        cursorColor: AppTheme.accentCyan,
+                        cursorColor: AppTheme.cyanAccent,
                         cursorWidth: 2.0,
                         cursorRadius: const Radius.circular(2),
                         showCursor: true,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 16,
+                          fontSize: 14.5,
                           fontWeight: FontWeight.w500,
                         ),
                         decoration: const InputDecoration(
-                          hintText: 'Search destination (e.g. Hyderabad, Bali, Paris, Tokyo...)',
-                          hintStyle: TextStyle(color: AppTheme.textMuted, fontSize: 15),
+                          hintText: 'Hyderabad',
+                          hintStyle: TextStyle(color: AppTheme.textMuted, fontSize: 14),
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
                           fillColor: Colors.transparent,
-                          contentPadding: EdgeInsets.symmetric(vertical: 18),
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
                         ),
                         onTap: () {
                           debugPrint('[Search] Search field tapped');
@@ -195,7 +202,7 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
                 if (_controller.text.isNotEmpty)
                   PointerInterceptor(
                     child: IconButton(
-                      icon: const Icon(Icons.close, color: AppTheme.textMuted, size: 20),
+                      icon: const Icon(Icons.close, color: AppTheme.textMuted, size: 18),
                       tooltip: 'Clear search',
                       onPressed: () {
                         debugPrint('[Search] Clear button pressed');
@@ -210,48 +217,48 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
                     ),
                   ),
                 Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.only(right: 5),
                   child: PointerInterceptor(
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(20),
                         onTap: _isSearching ? null : () {
-                          debugPrint('[Search] Explore button pressed with: "${_controller.text}"');
+                          debugPrint('[Search] Search button pressed with: "${_controller.text}"');
                           _handleSearch(_controller.text);
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [Color(0xFF00D2FF), Color(0xFF3B82F6)],
+                              colors: [Color(0xFF00D9FF), Color(0xFF0075FF)],
                             ),
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
-                                color: AppTheme.accentCyan.withOpacity(0.3),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
+                                color: AppTheme.cyanAccent.withValues(alpha: 0.35),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
                               )
                             ],
                           ),
                           child: _isSearching
                               ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.2),
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.0),
                                 )
                               : const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.search, color: Colors.white, size: 20),
+                                    Icon(Icons.search, color: Colors.white, size: 16),
                                     SizedBox(width: 6),
                                     Text(
-                                      'Explore',
+                                      'Search',
                                       style: TextStyle(
                                         color: Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13.5,
                                       ),
                                     ),
                                   ],
@@ -273,12 +280,12 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
                 constraints: const BoxConstraints(maxWidth: 620, maxHeight: 220),
                 margin: const EdgeInsets.only(top: 8),
                 decoration: BoxDecoration(
-                  color: AppTheme.cardNavy.withOpacity(0.96),
+                  color: AppTheme.cardNavy.withValues(alpha: 0.96),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppTheme.borderNavy),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.5),
+                      color: Colors.black.withValues(alpha: 0.5),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     )
@@ -287,7 +294,7 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: _suggestions.length,
-                  separatorBuilder: (_, __) => const Divider(color: AppTheme.borderNavy, height: 1),
+                  separatorBuilder: (_, _) => const Divider(color: AppTheme.borderNavy, height: 1),
                   itemBuilder: (context, index) {
                     final s = _suggestions[index];
                     return ListTile(
