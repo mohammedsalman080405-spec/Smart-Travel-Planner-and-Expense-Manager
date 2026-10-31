@@ -43,6 +43,7 @@ dependencies:
   model_viewer_plus: ^1.10.0
   shared_preferences: ^2.5.6
   flutter_globe: ^1.0.2
+  web: ^1.1.2
 
 dev_dependencies:
   flutter_test:

@@ -12,7 +12,7 @@ def get_destinations():
 
 @destinations_bp.route('/search', methods=['GET'])
 def search_destinations():
-    q = request.args.get('q', '').strip()
+    q = (request.args.get('q') or request.args.get('query') or '').strip()
     if not q:
         destinations = Destination.query.limit(10).all()
         return jsonify([d.to_dict() for d in destinations]), 200
@@ -27,9 +27,9 @@ def search_destinations():
 
 @destinations_bp.route('/geocode', methods=['GET'])
 def geocode_destination():
-    q = request.args.get('q', '').strip()
+    q = (request.args.get('q') or request.args.get('query') or '').strip()
     if not q:
-        return jsonify({'error': 'Query string "q" is required'}), 400
+        return jsonify({'error': 'Query string "q" or "query" is required'}), 400
 
     # 1. First check if exists in DB destinations
     match = Destination.query.filter(

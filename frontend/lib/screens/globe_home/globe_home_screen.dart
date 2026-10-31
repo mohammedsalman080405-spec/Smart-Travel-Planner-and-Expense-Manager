@@ -6,18 +6,58 @@ import '../../models/hotel.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/globe_provider.dart';
 import '../../providers/hotel_provider.dart';
+import '../../services/destination_service.dart';
 import '../../widgets/destination_search_bar.dart';
 import '../../widgets/hotel_side_panel.dart';
 import '../../widgets/interactive_globe.dart';
 
 class GlobeHomeScreen extends StatefulWidget {
-  const GlobeHomeScreen({super.key});
+  final String? initialSearch;
+  final int? initialHotelId;
+  const GlobeHomeScreen({super.key, this.initialSearch, this.initialHotelId});
 
   @override
   State<GlobeHomeScreen> createState() => _GlobeHomeScreenState();
 }
 
 class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialSearch != null && widget.initialSearch!.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _runSearch(widget.initialSearch!.trim());
+      });
+    }
+  }
+
+  Future<void> _runSearch(String query) async {
+    try {
+      final geo = await DestinationService.geocode(query);
+      final double lat = (geo['latitude'] as num).toDouble();
+      final double lng = (geo['longitude'] as num).toDouble();
+      final String name = geo['name'] ?? query;
+
+      if (mounted) {
+        context.read<GlobeProvider>().setCoordinates(lat, lng, animate: true);
+        await context.read<HotelProvider>().searchHotels(
+          latitude: lat,
+          longitude: lng,
+          destination: name,
+        );
+        if (widget.initialHotelId != null && mounted) {
+          final hp = context.read<HotelProvider>();
+          for (var h in hp.hotels) {
+            if (h.hotelId == widget.initialHotelId) {
+              hp.selectHotel(h);
+              break;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
     final hotelProvider = context.watch<HotelProvider>();
@@ -27,22 +67,27 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
     return Scaffold(
       backgroundColor: AppTheme.darkNavy,
       body: Stack(
+        fit: StackFit.expand,
         children: [
           // Main layout: 3D Globe + (optional) Right-Side Hotel Information Panel
           Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Interactive 3D Earth Globe
               // When hotel is selected on desktop: takes ~68% width; otherwise 100% width
               Expanded(
                 flex: selectedHotel != null ? 7 : 10,
                 child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    InteractiveGlobe(
-                      hotels: hotelProvider.hotels,
-                      selectedHotel: selectedHotel,
-                      onHotelSelected: (hotel) {
-                        hotelProvider.selectHotel(hotel);
-                      },
+                    Positioned.fill(
+                      child: InteractiveGlobe(
+                        hotels: hotelProvider.hotels,
+                        selectedHotel: selectedHotel,
+                        onHotelSelected: (hotel) {
+                          hotelProvider.selectHotel(hotel);
+                        },
+                      ),
                     ),
 
                     // Top Bar: Brand Logo & Responsive Navigation

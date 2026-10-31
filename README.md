@@ -66,9 +66,11 @@ Smart Travel Planner and Expense Manager/
 ## Technology Stack
 
 - **Frontend**: Flutter Web (Dart 3, Material Design 3, `go_router`, `provider`, `model_viewer_plus`, `fl_chart`, `intl`, `google_fonts`)
+- **Realistic 3D Earth Globe**: Three.js WebGL (r128) embedded via `HtmlElementView`, NASA Blue Marble equirectangular day texture (4096×2048), cloud layer with additive blending, atmospheric glow shader, specular ocean mask, directional sunlight, deep space starfield, and 3D spherical coordinate projection (`latLngToVector3`)
 - **Backend**: Python 3.13, Flask 3.1, Flask-SQLAlchemy, Flask-JWT-Extended, Flask-CORS, PyMySQL, Cryptography
+- **External APIs**: Google Places API (New) `POST https://places.googleapis.com/v1/places:searchNearby` with verified MySQL database fallback
 - **Database**: MySQL 8.x (`smart_travel_db`), 15 Relational Tables with Foreign Keys & Cascading Deletes
-- **3D Visualization**: Real interactive 3D Earth Globe with coordinate focus & GLB 3D Model Viewer
+- **3D Room Visualization**: Google `<model-viewer>` / `model_viewer_plus` for interactive GLB/glTF 3D room and space inspection
 
 ---
 
@@ -141,19 +143,23 @@ For instant sign-in and testing:
 
 ## User Workflows Implemented
 
-1. **Interactive 3D Earth Globe Homepage**:
-   - Opens with a full-screen luxury 3D Earth globe on deep navy background with wireframe landmasses and atmosphere.
-   - Mouse drag rotation, touch rotation, zoom in/out controls, and automatic rotation when idle.
+1. **Realistic 3D Earth Globe Homepage**:
+   - Replaced wireframe spheres with a photorealistic 3D Earth globe powered by Three.js WebGL and embedded seamlessly into Flutter Web via `HtmlElementView`.
+   - Utilizes genuine NASA Blue Marble equirectangular imagery (4096×2048), topographic normal maps, specular ocean reflection masks, realistic white cloud overlay, atmospheric halo glow shader, directional sunlight, and deep space starfield.
+   - Smooth mouse/touch OrbitControls, auto-rotation when idle, zoom in/out controls, and reset view.
 2. **Destination Search**:
-   - Prominent search bar supporting global tourist destinations (Hyderabad, Bali, Paris, Tokyo, Dubai, Mumbai, Singapore, London, New York).
+   - Prominent search bar supporting global tourist destinations (Hyderabad, Dubai, Bali, Paris, Tokyo, Mumbai, Singapore, London, New York).
    - Autocomplete suggestions and quick destination pills.
-   - Smoothly rotates the globe and zooms into searched coordinates.
-3. **Geographic Hotel Markers & Radius**:
-   - Fetches hotels located within the configurable radius (5 km, 10 km, 20 km, 30 km, 50 km) using actual Haversine distance calculations.
-   - Small glowing pins appear directly on the 3D globe surface with hover price badges.
+   - Geocodes destination to actual coordinates and smoothly rotates/zooms the Earth globe towards the target location.
+3. **Geographic Hotel Markers & Radius on Earth**:
+   - Connects to Google Places API (New) `POST https://places.googleapis.com/v1/places:searchNearby` with verified database fallback.
+   - Calculates geographic positions and projects them onto the spherical Earth surface using spherical trigonometry:
+     `phi = (90 - lat) * (PI / 180)`, `theta = (lng + 180) * (PI / 180)`
+   - Renders each hotel as a glowing 3D dot with a vertical pin and pulsing ring anchored directly to the Earth's surface (moves with Earth rotation).
+   - Interactive hover tooltips showing hotel name, nightly price, and star rating.
 4. **Right-Side Hotel Information Panel**:
-   - Clicking a hotel marker highlights the marker, keeps the globe visible (68% width), and slides open the right-side information panel (32% width).
-   - Displays exterior photograph, star rating, verified amenities, starting price, and an instant accommodation expense calculator for check-in and check-out dates.
+   - Clicking a hotel marker turns it gold/yellow, focuses the camera, keeps the globe visible (~68% width), and slides open the luxury right-side information panel (~32% width).
+   - Displays exterior photograph, star rating, verified address, starting price, facility tags, and instant accommodation expense calculator.
 5. **Hotel Interior & Property Exploration Page**:
    - Clicking the hotel exterior photograph or "Explore Hotel" opens `/hotel/:id`.
    - Displays exterior photo gallery, full description, verified facilities, and exploration tabs:

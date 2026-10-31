@@ -70,6 +70,7 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
 
   Future<void> _handleSearch(String query) async {
     if (query.trim().isEmpty) return;
+    debugPrint('[Search] Initiating search for: "$query"');
     setState(() {
       _isSearching = true;
       _showSuggestions = false;
@@ -80,27 +81,31 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
       final double lat = (geo['latitude'] as num).toDouble();
       final double lng = (geo['longitude'] as num).toDouble();
       final String name = geo['name'] ?? query.trim();
+      debugPrint('[Search] Geocoded "$query" -> Coordinates: ($lat, $lng)');
 
       if (mounted) {
-        // 1. Rotate & zoom globe towards target
+        // 1. Rotate & zoom globe towards target coordinates
         context.read<GlobeProvider>().setCoordinates(lat, lng, animate: true);
 
         // 2. Search hotels around coordinates
-        context.read<HotelProvider>().searchHotels(
+        debugPrint('[Search] Fetching nearby hotels around $name ($lat, $lng)...');
+        await context.read<HotelProvider>().searchHotels(
           latitude: lat,
           longitude: lng,
           destination: name,
         );
+        debugPrint('[Search] Hotels received: ${context.read<HotelProvider>().hotels.length} hotels found.');
 
         if (widget.onDestinationSelected != null) {
           widget.onDestinationSelected!(name, lat, lng);
         }
       }
     } catch (e) {
+      debugPrint('[Search] Error during search: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not find "$query". Try Hyderabad, Bali, Paris or Tokyo.'),
+            content: Text('Could not find "$query". Try Hyderabad, Bali, Paris, Dubai, or Tokyo.'),
             backgroundColor: AppTheme.accentRose,
           ),
         );

@@ -18,7 +18,10 @@ class AppRoutes {
     routes: [
       GoRoute(
         path: '/',
-        builder: (context, state) => const GlobeHomeScreen(),
+        builder: (context, state) => GlobeHomeScreen(
+          initialSearch: state.uri.queryParameters['search'] ?? state.uri.queryParameters['q'],
+          initialHotelId: int.tryParse(state.uri.queryParameters['hotel_id'] ?? ''),
+        ),
       ),
       GoRoute(
         path: '/hotel/:id',
