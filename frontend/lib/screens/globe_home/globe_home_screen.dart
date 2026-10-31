@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/globe_provider.dart';
 import '../../providers/hotel_provider.dart';
 import '../../services/destination_service.dart';
+import '../../services/hotel_service.dart';
 import '../../widgets/destination_search_bar.dart';
 import '../../widgets/hotel_workspace_tab.dart';
 import '../../widgets/interactive_globe.dart';
@@ -28,6 +29,23 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
     if (widget.initialSearch != null && widget.initialSearch!.trim().isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _runSearch(widget.initialSearch!.trim());
+      });
+    } else if (widget.initialHotelId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          final hotel = await HotelService.getHotelDetails(widget.initialHotelId!);
+          if (mounted) {
+            context.read<GlobeProvider>().setCoordinates(hotel.latitude, hotel.longitude, animate: true);
+            await context.read<HotelProvider>().searchHotels(
+              latitude: hotel.latitude,
+              longitude: hotel.longitude,
+              destination: hotel.city,
+            );
+            if (mounted) {
+              context.read<HotelProvider>().selectHotel(hotel);
+            }
+          }
+        } catch (_) {}
       });
     }
   }
@@ -138,6 +156,18 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
               left: isDesktop ? 264 : 20,
               child: PointerInterceptor(
                 child: _buildHotelStatusIndicator(context, hotelProvider),
+              ),
+            ),
+
+          // 1f. Left-side Hotel Cards List (Visible in background matching reference image)
+          if (isDesktop && hotelProvider.hotels.isNotEmpty)
+            Positioned(
+              top: 140,
+              bottom: 24,
+              left: 256,
+              width: 220,
+              child: PointerInterceptor(
+                child: _buildHotelCardsList(context, hotelProvider),
               ),
             ),
 
@@ -308,11 +338,24 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
 
           const SizedBox(height: 32),
 
-          // 1. My Trips (active item in reference image)
+          // 0. Explore (Active when on globe)
+          _SidebarNavButton(
+            icon: Icons.explore_outlined,
+            label: 'Explore',
+            isActive: !hotelProvider.hasOpenTabs,
+            onTap: () {
+              hotelProvider.closeAllTabs();
+              context.read<GlobeProvider>().resetView();
+            },
+          ),
+
+          const SizedBox(height: 12),
+
+          // 1. My Trips
           _SidebarNavButton(
             icon: Icons.map_outlined,
             label: 'My Trips',
-            isActive: true,
+            isActive: false,
             onTap: () => context.push('/trips'),
           ),
 
@@ -469,6 +512,102 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // Left-side column of hotel search result cards (as seen in reference image background)
+  Widget _buildHotelCardsList(BuildContext context, HotelProvider hotelProvider) {
+    return ListView.separated(
+      itemCount: hotelProvider.hotels.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, idx) {
+        final hotel = hotelProvider.hotels[idx];
+        final isSelected = hotelProvider.selectedHotel?.hotelId == hotel.hotelId;
+
+        return InkWell(
+          onTap: () => hotelProvider.selectHotel(hotel),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            height: 84,
+            decoration: BoxDecoration(
+              color: const Color(0xFF070E1A).withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSelected ? AppTheme.accentCyan : const Color(0x3300D9FF),
+                width: isSelected ? 1.5 : 0.8,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(11)),
+                  child: SizedBox(
+                    width: 72,
+                    height: 84,
+                    child: Image.network(
+                      hotel.exteriorImageUrl ?? '',
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: const Color(0xFF0D172E),
+                        child: const Icon(Icons.hotel, color: AppTheme.accentCyan, size: 24),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          hotel.hotelName.replaceAll(' (Demo)', ''),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.star, color: Color(0xFFFFB800), size: 12),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${hotel.starRating.toStringAsFixed(1)} (${hotel.reviewCount})',
+                              style: const TextStyle(color: Color(0xFF8A99AD), fontSize: 10.5),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '\$${hotel.startingPrice.toStringAsFixed(0)} / night',
+                          style: const TextStyle(
+                            color: AppTheme.accentCyan,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

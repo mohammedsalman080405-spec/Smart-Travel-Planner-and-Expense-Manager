@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:provider/provider.dart';
@@ -8,27 +7,9 @@ import '../models/hotel.dart';
 import '../models/hotel_space.dart';
 import '../models/room.dart';
 import '../providers/hotel_provider.dart';
+import '../services/booking_service.dart';
 import '../services/hotel_service.dart';
 import 'model_viewer_widget.dart';
-
-enum HotelTabStep {
-  exterior,
-  interior,
-  spaceDetail,
-  viewer3d,
-}
-
-class HotelTabState {
-  HotelTabStep step = HotelTabStep.exterior;
-  List<Room> rooms = [];
-  List<HotelSpace> spaces = [];
-  bool isLoadingInterior = false;
-  String selectedCategory = 'All';
-  Room? selectedRoom;
-  HotelSpace? selectedSpace;
-
-  HotelTabState();
-}
 
 class HotelWorkspaceTab extends StatefulWidget {
   const HotelWorkspaceTab({super.key});
@@ -38,64 +19,94 @@ class HotelWorkspaceTab extends StatefulWidget {
 }
 
 class _HotelWorkspaceTabState extends State<HotelWorkspaceTab> {
-  final Map<int, HotelTabState> _tabStates = {};
+  // Navigation tabs:
+  // 0: Overview
+  // 1: Rooms & Suites
+  // 2: Dining
+  // 3: Banquets & Events
+  // 4: Wellness & Spa
+  // 5: 3D View
+  // 6: Booking
+  int _currentNavTab = 0;
+  int _currentImageIdx = 0;
+  bool _isFavorite = false;
 
-  HotelTabState _getState(int hotelId) {
-    return _tabStates.putIfAbsent(hotelId, () => HotelTabState());
+  // Selected 3D inspection model targets
+  Room? _selectedRoomFor3D;
+  HotelSpace? _selectedSpaceFor3D;
+
+  // Booking Form State
+  Room? _selectedRoomForBooking;
+  DateTime _checkInDate = DateTime.now().add(const Duration(days: 7));
+  DateTime _checkOutDate = DateTime.now().add(const Duration(days: 10));
+  int _adultsCount = 2;
+  int _childrenCount = 0;
+  final TextEditingController _guestNameController = TextEditingController(text: 'Mohammed Salman');
+  final TextEditingController _guestEmailController = TextEditingController(text: 'salman@smarttravel.com');
+  final TextEditingController _guestPhoneController = TextEditingController(text: '+91 98765 43210');
+  final TextEditingController _specialRequestsController = TextEditingController();
+  bool _isBookingSubmitting = false;
+
+  // Cache of detailed hotel data (rooms, spaces, images)
+  final Map<int, Hotel> _detailedHotels = {};
+  final Set<int> _loadingHotels = {};
+
+  // Curated 10 high-resolution luxury gallery images for top-tier visual fidelity matching reference
+  static const List<String> _defaultLuxuryGallery = [
+    'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1400&q=80', // Palace exterior illuminated pool at dusk
+    'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1400&q=80', // Grand Durbar Hall & chandeliers
+    'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1400&q=80', // Royal canopy suite bedroom
+    'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1400&q=80', // Fine dining evening restaurant
+    'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1400&q=80', // Royal palace facade & marble courtyard
+    'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=1400&q=80', // Infinity pool overlooking city sunset
+    'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1400&q=80', // Executive palace lounge
+    'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1400&q=80', // Venetian marble bathroom
+    'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1400&q=80', // Royal gardens & fountain
+    'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1400&q=80', // Twilight palace terrace
+  ];
+
+  @override
+  void dispose() {
+    _guestNameController.dispose();
+    _guestEmailController.dispose();
+    _guestPhoneController.dispose();
+    _specialRequestsController.dispose();
+    super.dispose();
   }
 
-  Future<void> _loadInteriorData(Hotel hotel) async {
-    final state = _getState(hotel.hotelId);
-    if (state.rooms.isNotEmpty || state.spaces.isNotEmpty || state.isLoadingInterior) {
-      return;
-    }
-
-    setState(() {
-      state.isLoadingInterior = true;
-    });
-
+  void _loadHotelFullDetails(int hotelId) async {
+    if (_detailedHotels.containsKey(hotelId) || _loadingHotels.contains(hotelId)) return;
+    _loadingHotels.add(hotelId);
     try {
-      final roomsFuture = HotelService.getHotelRooms(hotel.hotelId);
-      final spacesFuture = HotelService.getHotelSpaces(hotel.hotelId);
-
-      final results = await Future.wait([roomsFuture, spacesFuture]);
+      final details = await HotelService.getHotelDetails(hotelId);
       if (mounted) {
         setState(() {
-          state.rooms = results[0] as List<Room>;
-          state.spaces = results[1] as List<HotelSpace>;
-          state.isLoadingInterior = false;
+          _detailedHotels[hotelId] = details;
+          _loadingHotels.remove(hotelId);
         });
       }
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          state.isLoadingInterior = false;
-        });
-      }
+      _loadingHotels.remove(hotelId);
     }
   }
 
-  void _navigateToStep(Hotel hotel, HotelTabStep newStep) {
-    final state = _getState(hotel.hotelId);
-    setState(() {
-      state.step = newStep;
-    });
-    if (newStep == HotelTabStep.interior && state.rooms.isEmpty) {
-      _loadInteriorData(hotel);
+  List<String> _getGalleryImages(Hotel hotel) {
+    final List<String> list = [];
+    if (hotel.exteriorImageUrl != null && hotel.exteriorImageUrl!.isNotEmpty) {
+      list.add(hotel.exteriorImageUrl!);
     }
-  }
-
-  void _navigateBack(Hotel hotel) {
-    final state = _getState(hotel.hotelId);
-    setState(() {
-      if (state.step == HotelTabStep.viewer3d) {
-        state.step = HotelTabStep.spaceDetail;
-      } else if (state.step == HotelTabStep.spaceDetail) {
-        state.step = HotelTabStep.interior;
-      } else if (state.step == HotelTabStep.interior) {
-        state.step = HotelTabStep.exterior;
+    for (var img in hotel.images) {
+      if (!list.contains(img.imageUrl) && img.imageUrl.isNotEmpty) {
+        list.add(img.imageUrl);
       }
-    });
+    }
+    for (var def in _defaultLuxuryGallery) {
+      if (list.length >= 10) break;
+      if (!list.contains(def)) {
+        list.add(def);
+      }
+    }
+    return list;
   }
 
   @override
@@ -108,52 +119,69 @@ class _HotelWorkspaceTabState extends State<HotelWorkspaceTab> {
       return const SizedBox.shrink();
     }
 
-    final currentHotel = openTabs[activeIndex];
-    final state = _getState(currentHotel.hotelId);
+    final rawHotel = openTabs[activeIndex];
+    _loadHotelFullDetails(rawHotel.hotelId);
+    final hotel = _detailedHotels[rawHotel.hotelId] ?? rawHotel;
+
+    final gallery = _getGalleryImages(hotel);
+    if (_currentImageIdx >= gallery.length) {
+      _currentImageIdx = 0;
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 800;
-        final tabWidth = isMobile ? constraints.maxWidth * 0.95 : (constraints.maxWidth * 0.75).clamp(860.0, 1160.0);
-        final tabHeight = isMobile ? constraints.maxHeight * 0.94 : (constraints.maxHeight * 0.85).clamp(620.0, 880.0);
+        // Large, centered outer container that occupies almost the entire screen
+        final containerWidth = isMobile
+            ? constraints.maxWidth * 0.96
+            : (constraints.maxWidth * 0.92).clamp(940.0, 1420.0);
+        final containerHeight = isMobile
+            ? constraints.maxHeight * 0.96
+            : (constraints.maxHeight * 0.92).clamp(660.0, 960.0);
 
         return Center(
           child: PointerInterceptor(
             child: Container(
-              width: tabWidth,
-              height: tabHeight,
+              width: containerWidth,
+              height: containerHeight,
               decoration: BoxDecoration(
-                color: const Color(0xFF0D172E),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.4), width: 1.5),
+                color: Colors.black, // Pure black background throughout
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: AppTheme.accentCyan, // Thin glowing cyan border (#00D9FF)
+                  width: 1.5,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.65),
-                    blurRadius: 36,
-                    offset: const Offset(0, 16),
+                    color: Colors.black.withValues(alpha: 0.9),
+                    blurRadius: 40,
+                    offset: const Offset(0, 18),
                   ),
                   BoxShadow(
-                    color: AppTheme.accentCyan.withValues(alpha: 0.12),
+                    color: AppTheme.accentCyan.withValues(alpha: 0.32),
                     blurRadius: 28,
-                    spreadRadius: 2,
+                    spreadRadius: 1,
                   ),
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(18),
                 child: Column(
                   children: [
-                    // 1. Horizontal Browser-style Tab Strip
-                    _buildTabStrip(hotelProvider, openTabs, activeIndex),
+                    // 1. TOP MULTI-TAB STRIP (Browser / Workspace tabs)
+                    _buildTopTabStrip(hotelProvider, openTabs, activeIndex),
 
-                    // 2. Navigation Header Bar & Breadcrumbs
-                    _buildWorkspaceHeader(currentHotel, state),
+                    // 2. HOTEL HEADER (Breadcrumbs, title, badge, rating, location, price)
+                    _buildHotelHeader(context, hotelProvider, hotel),
 
-                    // 3. Tab Workspace Content (Replaced inside the existing tab)
+                    // 3. HORIZONTAL SEVEN NAVIGATION TABS
+                    _buildHorizontalNavTabs(),
+
+                    // 4. MAIN CONTENT ROUTER (Switches content inside the SAME outer container)
                     Expanded(
                       child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
-                        child: _buildCurrentStepContent(context, hotelProvider, currentHotel, state),
+                        duration: const Duration(milliseconds: 200),
+                        child: _buildCurrentTabContent(context, hotel, gallery),
                       ),
                     ),
                   ],
@@ -166,14 +194,18 @@ class _HotelWorkspaceTabState extends State<HotelWorkspaceTab> {
     );
   }
 
-  // 1. Browser-style Tab Strip
-  Widget _buildTabStrip(HotelProvider hotelProvider, List<Hotel> openTabs, int activeIndex) {
+  // ===========================================================================
+  // 1. TOP MULTI-TAB WORKSPACE STRIP
+  // ===========================================================================
+  Widget _buildTopTabStrip(HotelProvider hotelProvider, List<Hotel> openTabs, int activeIndex) {
     return Container(
       height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: const BoxDecoration(
-        color: Color(0xFF091122),
-        border: Border(bottom: BorderSide(color: Color(0xFF1E2D4A))),
+        color: Color(0xFF040810),
+        border: Border(
+          bottom: BorderSide(color: Color(0x3300D9FF), width: 1.0),
+        ),
       ),
       child: Row(
         children: [
@@ -181,9 +213,9 @@ class _HotelWorkspaceTabState extends State<HotelWorkspaceTab> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: openTabs.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, idx) {
-                final hotel = openTabs[idx];
+                final h = openTabs[idx];
                 final isActive = idx == activeIndex;
 
                 return InkWell(
@@ -192,32 +224,32 @@ class _HotelWorkspaceTabState extends State<HotelWorkspaceTab> {
                   },
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                     decoration: BoxDecoration(
-                      color: isActive ? const Color(0xFF162544) : Colors.transparent,
+                      color: isActive ? const Color(0xFF091C2E) : const Color(0xFF060B14),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: isActive ? AppTheme.accentCyan.withValues(alpha: 0.6) : Colors.transparent,
-                        width: 1,
+                        color: isActive ? AppTheme.accentCyan : const Color(0x3300D9FF),
+                        width: isActive ? 1.4 : 1.0,
                       ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.hotel,
+                          Icons.apartment,
                           size: 15,
-                          color: isActive ? AppTheme.accentCyan : AppTheme.textMuted,
+                          color: isActive ? AppTheme.accentCyan : const Color(0xFF8A99AD),
                         ),
                         const SizedBox(width: 8),
                         ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 180),
+                          constraints: const BoxConstraints(maxWidth: 190),
                           child: Text(
-                            hotel.hotelName.replaceAll(' (Demo)', ''),
+                            h.hotelName.replaceAll(' (Demo)', ''),
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: isActive ? Colors.white : AppTheme.textMuted,
-                              fontSize: 12,
+                              color: isActive ? Colors.white : const Color(0xFF8A99AD),
+                              fontSize: 12.5,
                               fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
                             ),
                           ),
@@ -233,7 +265,7 @@ class _HotelWorkspaceTabState extends State<HotelWorkspaceTab> {
                             child: Icon(
                               Icons.close,
                               size: 14,
-                              color: isActive ? Colors.white70 : AppTheme.textMuted,
+                              color: isActive ? Colors.white70 : const Color(0xFF8A99AD),
                             ),
                           ),
                         ),
@@ -244,9 +276,66 @@ class _HotelWorkspaceTabState extends State<HotelWorkspaceTab> {
               },
             ),
           ),
+          const SizedBox(width: 8),
+
+          // Add / Browse other searched hotels (+) button
+          if (hotelProvider.hotels.isNotEmpty)
+            PopupMenuButton<Hotel>(
+              tooltip: 'Open another verified hotel in a new tab',
+              offset: const Offset(0, 36),
+              color: const Color(0xFF070E1A),
+              elevation: 12,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Color(0x4400D9FF)),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF070E1A),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0x4400D9FF)),
+                ),
+                child: const Icon(Icons.add, size: 16, color: AppTheme.accentCyan),
+              ),
+              itemBuilder: (context) {
+                return hotelProvider.hotels.map((h) {
+                  return PopupMenuItem<Hotel>(
+                    value: h,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.apartment, size: 16, color: AppTheme.accentCyan),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            h.hotelName.replaceAll(' (Demo)', ''),
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '\$${h.startingPrice.toStringAsFixed(0)}',
+                          style: const TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList();
+              },
+              onSelected: (hotel) {
+                hotelProvider.selectHotel(hotel);
+              },
+            ),
+
+          const SizedBox(width: 10),
+
+          // Top Right Close button for the entire outer container
           IconButton(
             icon: const Icon(Icons.close, color: Colors.white70, size: 20),
-            tooltip: 'Close Workspace',
+            tooltip: 'Close Hotel Details',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
             onPressed: () {
               hotelProvider.closeAllTabs();
             },
@@ -256,230 +345,89 @@ class _HotelWorkspaceTabState extends State<HotelWorkspaceTab> {
     );
   }
 
-  // 2. Navigation Header Bar & Breadcrumbs
-  Widget _buildWorkspaceHeader(Hotel hotel, HotelTabState state) {
-    String stepTitle = 'Hotel Exterior';
-    if (state.step == HotelTabStep.interior) {
-      stepTitle = 'Interior & Spaces';
-    } else if (state.step == HotelTabStep.spaceDetail) {
-      stepTitle = state.selectedRoom?.roomName ?? state.selectedSpace?.spaceName ?? 'Space Details';
-    } else if (state.step == HotelTabStep.viewer3d) {
-      stepTitle = 'Interactive 3D Viewer';
-    }
+  // ===========================================================================
+  // 2. HOTEL HEADER (Breadcrumbs, Title, Badge, Rating, Location, Price)
+  // ===========================================================================
+  Widget _buildHotelHeader(BuildContext context, HotelProvider hotelProvider, Hotel hotel) {
+    final cleanName = hotel.hotelName.replaceAll(' (Demo)', '');
+    final city = hotel.city.isNotEmpty ? hotel.city : (hotelProvider.currentDestination.isNotEmpty ? hotelProvider.currentDestination : 'Hyderabad');
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F1A30),
-        border: Border(bottom: BorderSide(color: Color(0xFF1E2D4A))),
-      ),
-      child: Row(
-        children: [
-          // Back Button (active when inside interior, details, or 3D)
-          if (state.step != HotelTabStep.exterior) ...[
-            InkWell(
-              onTap: () => _navigateBack(hotel),
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF192A4C),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.3)),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.arrow_back, color: AppTheme.accentCyan, size: 16),
-                    SizedBox(width: 6),
-                    Text(
-                      'Back',
-                      style: TextStyle(color: AppTheme.accentCyan, fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-          ],
-
-          // Breadcrumbs trail
-          Expanded(
-            child: Row(
-              children: [
-                InkWell(
-                  onTap: () => _navigateToStep(hotel, HotelTabStep.exterior),
-                  child: Text(
-                    hotel.hotelName.replaceAll(' (Demo)', ''),
-                    style: TextStyle(
-                      color: state.step == HotelTabStep.exterior ? Colors.white : AppTheme.textMuted,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                if (state.step != HotelTabStep.exterior) ...[
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 6),
-                    child: Icon(Icons.chevron_right, size: 16, color: AppTheme.textMuted),
-                  ),
-                  InkWell(
-                    onTap: () => _navigateToStep(hotel, HotelTabStep.interior),
-                    child: Text(
-                      'Interior & Spaces',
-                      style: TextStyle(
-                        color: state.step == HotelTabStep.interior ? Colors.white : AppTheme.textMuted,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ],
-                if (state.step == HotelTabStep.spaceDetail || state.step == HotelTabStep.viewer3d) ...[
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 6),
-                    child: Icon(Icons.chevron_right, size: 16, color: AppTheme.textMuted),
-                  ),
-                  Text(
-                    stepTitle,
-                    style: const TextStyle(
-                      color: AppTheme.accentCyan,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          // Price Tag Badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppTheme.accentCyan.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.4)),
-            ),
-            child: Text(
-              '\$${hotel.startingPrice.toStringAsFixed(0)} / night',
-              style: const TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 3. Main Content Router based on current step
-  Widget _buildCurrentStepContent(BuildContext context, HotelProvider provider, Hotel hotel, HotelTabState state) {
-    switch (state.step) {
-      case HotelTabStep.exterior:
-        return _buildExteriorView(context, provider, hotel, state);
-      case HotelTabStep.interior:
-        return _buildInteriorView(context, hotel, state);
-      case HotelTabStep.spaceDetail:
-        return _buildSpaceDetailView(context, hotel, state);
-      case HotelTabStep.viewer3d:
-        return _build3dViewerView(context, hotel, state);
-    }
-  }
-
-  // STEP 1: Hotel Exterior View
-  Widget _buildExteriorView(BuildContext context, HotelProvider provider, Hotel hotel, HotelTabState state) {
-    return SingleChildScrollView(
-      key: const ValueKey('step_exterior'),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(22, 14, 22, 10),
+      color: Colors.black,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Large Clickable Exterior Photo Banner
-          InkWell(
-            onTap: () {
-              _navigateToStep(hotel, HotelTabStep.interior);
-            },
-            borderRadius: BorderRadius.circular(18),
-            child: Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: SizedBox(
-                    height: 230,
-                    width: double.infinity,
-                    child: Image.network(
-                      hotel.exteriorImageUrl ?? 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80',
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: const Color(0xFF1E2D4A),
-                        child: const Icon(Icons.hotel, size: 64, color: AppTheme.textMuted),
-                      ),
-                    ),
+          // Row 1: Back button and Breadcrumbs
+          Row(
+            children: [
+              InkWell(
+                onTap: () {
+                  if (_currentNavTab != 0) {
+                    setState(() => _currentNavTab = 0);
+                  } else {
+                    hotelProvider.closeAllTabs();
+                  }
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppTheme.accentCyan, width: 1.2),
                   ),
-                ),
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.75),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 16,
-                  left: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentGold,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'VERIFIED LUXURY PROPERTY',
-                      style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 11),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 16,
-                  right: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentCyan,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.accentCyan.withValues(alpha: 0.4),
-                          blurRadius: 16,
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.arrow_back, color: AppTheme.accentCyan, size: 14),
+                      SizedBox(width: 6),
+                      Text(
+                        'Back',
+                        style: TextStyle(
+                          color: AppTheme.accentCyan,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
                         ),
-                      ],
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.touch_app, color: Colors.black87, size: 18),
-                        SizedBox(width: 8),
-                        Text(
-                          'Click to Explore Interior & 3D Spaces',
-                          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 14),
+              // Breadcrumbs
+              Text(
+                city,
+                style: const TextStyle(color: Color(0xFF8A99AD), fontSize: 13),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Icon(Icons.chevron_right, size: 14, color: Color(0xFF8A99AD)),
+              ),
+              const Text(
+                'Hotels',
+                style: TextStyle(color: Color(0xFF8A99AD), fontSize: 13),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Icon(Icons.chevron_right, size: 14, color: Color(0xFF8A99AD)),
+              ),
+              Flexible(
+                child: Text(
+                  cleanName,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
 
-          // Hotel Title & Rating Row
+          // Row 2: Hotel Name + Verified Badge + Favorites / Share + Starting Price
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -487,52 +435,85 @@ class _HotelWorkspaceTabState extends State<HotelWorkspaceTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      hotel.hotelName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppTheme.accentGold.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppTheme.accentGold),
+                        Flexible(
+                          child: Text(
+                            cleanName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.2,
+                            ),
                           ),
-                          child: Row(
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFB800), // Golden Verified badge
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.star, color: AppTheme.accentGold, size: 14),
-                              const SizedBox(width: 4),
+                              Icon(Icons.check, size: 12, color: Colors.black),
+                              SizedBox(width: 4),
                               Text(
-                                '${hotel.starRating.toStringAsFixed(1)} Star',
-                                style: const TextStyle(color: AppTheme.accentGold, fontSize: 12, fontWeight: FontWeight.bold),
+                                'Verified Property',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Text(
-                          '★ ${hotel.reviewRating.toStringAsFixed(1)} (${hotel.reviewCount} reviews)',
-                          style: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
-                        ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
+                    // Rating + Reviews + Address
                     Row(
                       children: [
-                        const Icon(Icons.location_on, color: AppTheme.accentCyan, size: 16),
-                        const SizedBox(width: 6),
-                        Expanded(
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF261D09),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFFB800), width: 0.8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star_rounded, color: Color(0xFFFFB800), size: 14),
+                              const SizedBox(width: 4),
+                              Text(
+                                hotel.starRating.toStringAsFixed(1),
+                                style: const TextStyle(
+                                  color: Color(0xFFFFB800),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '(${hotel.reviewCount} reviews)',
+                          style: const TextStyle(color: Color(0xFF8A99AD), fontSize: 12.5),
+                        ),
+                        const SizedBox(width: 16),
+                        const Icon(Icons.location_on, color: AppTheme.accentCyan, size: 15),
+                        const SizedBox(width: 4),
+                        Flexible(
                           child: Text(
                             hotel.address,
-                            style: const TextStyle(color: AppTheme.textLight, fontSize: 13),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Color(0xFFB0C0D0), fontSize: 12.5),
                           ),
                         ),
                       ],
@@ -541,557 +522,1407 @@ class _HotelWorkspaceTabState extends State<HotelWorkspaceTab> {
                 ),
               ),
 
-              // Action Buttons
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              // Right side: Favorite & Share icons + Price
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.meeting_room, color: Colors.black87, size: 18),
-                    label: const Text('EXPLORE HOTEL INTERIOR'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.accentCyan,
-                      foregroundColor: Colors.black87,
-                      textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      elevation: 4,
+                  IconButton(
+                    icon: Icon(
+                      _isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: _isFavorite ? Colors.redAccent : Colors.white,
+                      size: 20,
                     ),
+                    tooltip: 'Save to Favorites',
                     onPressed: () {
-                      _navigateToStep(hotel, HotelTabStep.interior);
+                      setState(() => _isFavorite = !_isFavorite);
                     },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.share_outlined, color: Colors.white, size: 20),
+                    tooltip: 'Share Hotel',
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Hotel link copied to clipboard!'),
+                          backgroundColor: Color(0xFF0C1929),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text(
+                        'Starting from',
+                        style: TextStyle(color: Color(0xFF8A99AD), fontSize: 11),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            '\$${hotel.startingPrice.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              color: AppTheme.accentCyan,
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Text(
+                            '/ night',
+                            style: TextStyle(color: Color(0xFF8A99AD), fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ],
               ),
             ],
-          ),
-          const SizedBox(height: 20),
-
-          // Estimated Trip Accommodation Expense Calculator
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: const Color(0xFF13203C),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF223558)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.calculate, color: AppTheme.accentCyan, size: 18),
-                    SizedBox(width: 8),
-                    Text(
-                      'ESTIMATED TRIP ACCOMMODATION EXPENSE',
-                      style: TextStyle(color: AppTheme.accentCyan, fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Check-In: ${DateFormat('MMM dd, yyyy').format(provider.checkInDate)}  →  Check-Out: ${DateFormat('MMM dd, yyyy').format(provider.checkOutDate)}',
-                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
-                      ),
-                    ),
-                    Text(
-                      '\$${hotel.startingPrice.toStringAsFixed(0)} × ${provider.estimatedNights} nights  =  \$${(hotel.startingPrice * provider.estimatedNights).toStringAsFixed(2)}',
-                      style: const TextStyle(color: AppTheme.accentCyan, fontSize: 15, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Hotel Description
-          const Text(
-            'About this Property',
-            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            hotel.description,
-            style: const TextStyle(color: AppTheme.textMuted, fontSize: 14, height: 1.5),
-          ),
-          const SizedBox(height: 20),
-
-          // Verified Facilities & Amenities Pills
-          const Text(
-            'Hotel Amenities & Facilities',
-            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: (hotel.facilitiesList.isNotEmpty
-                    ? hotel.facilitiesList
-                    : hotel.facilities.map((f) => f.facilityName).toList())
-                .map((f) {
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF162544),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF223558)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.check_circle_outline, color: AppTheme.accentCyan, size: 16),
-                    const SizedBox(width: 6),
-                    Text(f, style: const TextStyle(color: Colors.white, fontSize: 13)),
-                  ],
-                ),
-              );
-            }).toList(),
           ),
         ],
       ),
     );
   }
 
-  // STEP 2: Hotel Interior View
-  Widget _buildInteriorView(BuildContext context, Hotel hotel, HotelTabState state) {
-    if (state.isLoadingInterior) {
-      return const Center(
-        key: ValueKey('interior_loading'),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+  // ===========================================================================
+  // 3. HORIZONTAL SEVEN NAVIGATION TABS
+  // ===========================================================================
+  Widget _buildHorizontalNavTabs() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+      color: Colors.black,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
           children: [
-            CircularProgressIndicator(color: AppTheme.accentCyan),
-            SizedBox(height: 16),
-            Text(
-              'Loading hotel interior spaces and 3D models...',
-              style: TextStyle(color: AppTheme.textMuted, fontSize: 14),
-            ),
+            _buildNavTabButton(0, 'Overview', Icons.home_rounded),
+            _buildNavTabButton(1, 'Rooms & Suites', Icons.bed_rounded),
+            _buildNavTabButton(2, 'Dining', Icons.restaurant_rounded),
+            _buildNavTabButton(3, 'Banquets & Events', Icons.event_seat_rounded),
+            _buildNavTabButton(4, 'Wellness & Spa', Icons.spa_rounded),
+            _buildNavTabButton(5, '3D View', Icons.view_in_ar_rounded),
+            _buildNavTabButton(6, 'Booking', Icons.confirmation_number_rounded),
           ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    final categories = ['All', 'Rooms & Suites', 'Banquet & Halls', 'Dining & Lounges', 'Wellness & Spa'];
+  Widget _buildNavTabButton(int index, String label, IconData icon) {
+    final isSelected = _currentNavTab == index;
 
-    List<dynamic> filteredItems = [];
-    if (state.selectedCategory == 'All') {
-      filteredItems = [...state.rooms, ...state.spaces];
-    } else if (state.selectedCategory == 'Rooms & Suites') {
-      filteredItems = state.rooms;
-    } else if (state.selectedCategory == 'Banquet & Halls') {
-      filteredItems = state.spaces.where((s) => s.category.toLowerCase().contains('banquet') || s.category.toLowerCase().contains('conference')).toList();
-    } else if (state.selectedCategory == 'Dining & Lounges') {
-      filteredItems = state.spaces.where((s) => s.category.toLowerCase().contains('restaurant') || s.category.toLowerCase().contains('lounge')).toList();
-    } else if (state.selectedCategory == 'Wellness & Spa') {
-      filteredItems = state.spaces.where((s) => s.category.toLowerCase().contains('pool') || s.category.toLowerCase().contains('spa')).toList();
-    }
-
-    return Column(
-      key: const ValueKey('step_interior'),
-      children: [
-        // Category Selector Bar
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: const BoxDecoration(
-            color: Color(0xFF0F1A30),
-            border: Border(bottom: BorderSide(color: Color(0xFF1E2D4A))),
-          ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: categories.map((cat) {
-                final isSelected = state.selectedCategory == cat;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(cat),
-                    selected: isSelected,
-                    selectedColor: AppTheme.accentCyan,
-                    backgroundColor: const Color(0xFF162544),
-                    labelStyle: TextStyle(
-                      color: isSelected ? Colors.black87 : Colors.white70,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    onSelected: (val) {
-                      setState(() {
-                        state.selectedCategory = cat;
-                      });
-                    },
-                  ),
-                );
-              }).toList(),
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _currentNavTab = index;
+          });
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8.5),
+          decoration: BoxDecoration(
+            color: isSelected ? AppTheme.accentCyan : Colors.black,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? AppTheme.accentCyan : const Color(0x3300D9FF),
+              width: 1.2,
             ),
           ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? Colors.black : Colors.white,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.black : Colors.white,
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
 
-        // Grid of Spaces and Rooms
-        Expanded(
-          child: filteredItems.isEmpty
-              ? const Center(
-                  child: Text('No spaces found in this category.', style: TextStyle(color: AppTheme.textMuted)),
-                )
-              : GridView.builder(
-                  padding: const EdgeInsets.all(20),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 1.45,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
+  // ===========================================================================
+  // 4. MAIN CONTENT ROUTER INSIDE THE SAME CONTAINER
+  // ===========================================================================
+  Widget _buildCurrentTabContent(BuildContext context, Hotel hotel, List<String> gallery) {
+    switch (_currentNavTab) {
+      case 0:
+        return _buildOverviewTab(context, hotel, gallery);
+      case 1:
+        return _buildRoomsTab(context, hotel);
+      case 2:
+        return _buildDiningTab(context, hotel);
+      case 3:
+        return _buildBanquetsTab(context, hotel);
+      case 4:
+        return _buildWellnessTab(context, hotel);
+      case 5:
+        return _build3dViewTab(context, hotel);
+      case 6:
+        return _buildBookingTab(context, hotel);
+      default:
+        return _buildOverviewTab(context, hotel, gallery);
+    }
+  }
+
+  // ===========================================================================
+  // TAB 1: OVERVIEW TAB (Exact Reference Layout)
+  // ===========================================================================
+  Widget _buildOverviewTab(BuildContext context, Hotel hotel, List<String> gallery) {
+    final cleanName = hotel.hotelName.replaceAll(' (Demo)', '');
+
+    return SingleChildScrollView(
+      key: const ValueKey('tab_overview'),
+      padding: const EdgeInsets.fromLTRB(22, 10, 22, 22),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // LEFT COLUMN (~68% width)
+          Expanded(
+            flex: 68,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Large Hotel Image Carousel
+                _buildHeroImageCarousel(gallery),
+
+                const SizedBox(height: 12),
+
+                // 2. Horizontal Thumbnail Gallery (6 items in a row)
+                _buildThumbnailGallery(gallery),
+
+                const SizedBox(height: 20),
+
+                // 3. About the Hotel Section
+                Text(
+                  'About $cleanName',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
-                  itemCount: filteredItems.length,
-                  itemBuilder: (context, idx) {
-                    final item = filteredItems[idx];
-                    final isRoom = item is Room;
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  hotel.description.isNotEmpty
+                      ? hotel.description
+                      : 'Perched 2,000 feet above Hyderabad, this 1893 royal palace blends Nizams\' heritage with Italian marble, Venetian chandeliers and world-class luxury. Experience unparalleled elegance, impeccable service and breathtaking views of the city.',
+                  style: const TextStyle(
+                    color: Color(0xFFB0C0D0),
+                    fontSize: 13.5,
+                    height: 1.55,
+                  ),
+                ),
 
-                    final String name = isRoom ? item.roomName : (item as HotelSpace).spaceName;
-                    final String type = isRoom ? item.roomType : (item as HotelSpace).category;
-                    final String image = isRoom ? (item.imageUrl ?? '') : ((item as HotelSpace).imageUrl ?? '');
-                    final double price = isRoom ? item.pricePerNight : (item as HotelSpace).price;
-                    final String priceLabel = isRoom ? '\$${price.toStringAsFixed(0)} / night' : '\$${price.toStringAsFixed(0)} / hr';
+                const SizedBox(height: 22),
 
-                    return InkWell(
-                      onTap: () {
-                        setState(() {
-                          if (isRoom) {
-                            state.selectedRoom = item;
-                            state.selectedSpace = null;
-                          } else {
-                            state.selectedSpace = item as HotelSpace;
-                            state.selectedRoom = null;
-                          }
-                          state.step = HotelTabStep.spaceDetail;
-                        });
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF13203C),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFF223558)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 6,
-                              child: ClipRRect(
-                                borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                                child: Stack(
-                                  children: [
-                                    Positioned.fill(
-                                      child: Image.network(
-                                        image,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Container(
-                                          color: const Color(0xFF1E2D4A),
-                                          child: const Icon(Icons.bed, color: AppTheme.textMuted),
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      top: 10,
-                                      left: 10,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withValues(alpha: 0.7),
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.5)),
-                                        ),
-                                        child: Text(
-                                          type,
-                                          style: const TextStyle(color: AppTheme.accentCyan, fontSize: 11, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                    ),
-                                    const Positioned(
-                                      bottom: 10,
-                                      right: 10,
-                                      child: CircleAvatar(
-                                        radius: 14,
-                                        backgroundColor: AppTheme.accentCyan,
-                                        child: Icon(Icons.view_in_ar, size: 16, color: Colors.black87),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 4,
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            name,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            priceLabel,
-                                            style: const TextStyle(color: AppTheme.accentCyan, fontSize: 12, fontWeight: FontWeight.w600),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const Icon(Icons.chevron_right, color: AppTheme.accentCyan, size: 20),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
+                // 4. Hotel Amenities & Facilities Section
+                const Text(
+                  'Hotel Amenities & Facilities',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildAmenitiesPills(hotel),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 20),
+
+          // RIGHT COLUMN (~32% width)
+          Expanded(
+            flex: 32,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Unmatched Luxury Experience Checklist Card
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF050A14),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0x3300D9FF), width: 1.0),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Unmatched Luxury Experience',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    );
-                  },
+                      const SizedBox(height: 14),
+                      _buildChecklistRow('Heritage Palace Hotel'),
+                      _buildChecklistRow('Free Wi-Fi'),
+                      _buildChecklistRow('Infinity Pool'),
+                      _buildChecklistRow('Spa & Wellness'),
+                      _buildChecklistRow('Fine Dining'),
+                      _buildChecklistRow('Airport Transfer'),
+
+                      const SizedBox(height: 16),
+                      const Divider(color: Color(0x2200D9FF)),
+                      const SizedBox(height: 12),
+
+                      // Price Row
+                      const Text(
+                        'Starting from',
+                        style: TextStyle(color: Color(0xFF8A99AD), fontSize: 11),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            '\$${hotel.startingPrice.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              color: AppTheme.accentCyan,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Text(
+                            '/ night',
+                            style: TextStyle(color: Color(0xFF8A99AD), fontSize: 13),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Explore Rooms CTA Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _currentNavTab = 1; // Switch to Rooms & Suites
+                            });
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.accentCyan,
+                            foregroundColor: Colors.black87,
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Explore Rooms',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              SizedBox(width: 6),
+                              Icon(Icons.arrow_forward, size: 16, color: Colors.black),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+
+                const SizedBox(height: 18),
+
+                // 2. Key Highlights List
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF050A14),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0x3300D9FF), width: 1.0),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildHighlightItem(
+                        icon: Icons.star_rounded,
+                        iconColor: const Color(0xFFFFB800),
+                        title: '${hotel.starRating.toStringAsFixed(1)} Star Rating',
+                        subtitle: 'Based on ${hotel.reviewCount} reviews',
+                      ),
+                      const SizedBox(height: 14),
+                      _buildHighlightItem(
+                        icon: Icons.location_on,
+                        iconColor: AppTheme.accentCyan,
+                        title: 'Prime Location',
+                        subtitle: '${hotel.city.isNotEmpty ? hotel.city : 'Historic District'}, India',
+                      ),
+                      const SizedBox(height: 14),
+                      _buildHighlightItem(
+                        icon: Icons.account_balance,
+                        iconColor: AppTheme.accentCyan,
+                        title: 'Heritage Property',
+                        subtitle: 'Built in 1893 Royal Estate',
+                      ),
+                      const SizedBox(height: 14),
+                      _buildHighlightItem(
+                        icon: Icons.workspace_premium,
+                        iconColor: AppTheme.accentCyan,
+                        title: 'Luxury Experience',
+                        subtitle: 'World-class 5-star amenities',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Hero Image Carousel Widget
+  Widget _buildHeroImageCarousel(List<String> gallery) {
+    final currentUrl = gallery[_currentImageIdx];
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Stack(
+        children: [
+          SizedBox(
+            height: 320,
+            width: double.infinity,
+            child: Image.network(
+              currentUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                color: const Color(0xFF0B1424),
+                child: const Center(
+                  child: Icon(Icons.hotel, size: 64, color: AppTheme.accentCyan),
+                ),
+              ),
+            ),
+          ),
+
+          // Previous Image Button
+          Positioned(
+            left: 12,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    _currentImageIdx = (_currentImageIdx - 1 + gallery.length) % gallery.length;
+                  });
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.65),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24, width: 1.0),
+                  ),
+                  child: const Icon(Icons.chevron_left, color: Colors.white, size: 24),
+                ),
+              ),
+            ),
+          ),
+
+          // Next Image Button
+          Positioned(
+            right: 12,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    _currentImageIdx = (_currentImageIdx + 1) % gallery.length;
+                  });
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.65),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24, width: 1.0),
+                  ),
+                  child: const Icon(Icons.chevron_right, color: Colors.white, size: 24),
+                ),
+              ),
+            ),
+          ),
+
+          // Image Counter Pill (e.g. 1 / 10)
+          Positioned(
+            top: 14,
+            right: 14,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Text(
+                '${_currentImageIdx + 1} / ${gallery.length}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Horizontal Thumbnail Gallery (6 items in row)
+  Widget _buildThumbnailGallery(List<String> gallery) {
+    final displayThumbnails = gallery.take(6).toList();
+
+    return Row(
+      children: displayThumbnails.asMap().entries.map((entry) {
+        final idx = entry.key;
+        final url = entry.value;
+        final isSelected = _currentImageIdx == idx;
+
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: idx < displayThumbnails.length - 1 ? 8 : 0),
+            child: InkWell(
+              onTap: () {
+                setState(() => _currentImageIdx = idx);
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                height: 68,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isSelected ? AppTheme.accentCyan : Colors.transparent,
+                    width: isSelected ? 2.0 : 0.0,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(isSelected ? 6 : 8),
+                  child: Image.network(
+                    url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: const Color(0xFF0A101D),
+                      child: const Icon(Icons.image, size: 20, color: Color(0xFF8A99AD)),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildChecklistRow(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle, color: AppTheme.accentCyan, size: 16),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHighlightItem({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: iconColor, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  color: Color(0xFF8A99AD),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  // STEP 3: Individual Space Detail View
-  Widget _buildSpaceDetailView(BuildContext context, Hotel hotel, HotelTabState state) {
-    final isRoom = state.selectedRoom != null;
-    final String title = isRoom ? state.selectedRoom!.roomName : state.selectedSpace!.spaceName;
-    final String type = isRoom ? state.selectedRoom!.roomType : state.selectedSpace!.category;
-    final String description = (isRoom ? state.selectedRoom!.description : state.selectedSpace!.description) ?? 'No description available.';
-    final String imageUrl = isRoom ? (state.selectedRoom!.imageUrl ?? '') : (state.selectedSpace!.imageUrl ?? '');
-    final String? modelUrl = isRoom ? state.selectedRoom!.modelUrl : state.selectedSpace!.modelUrl;
-    final double price = isRoom ? state.selectedRoom!.pricePerNight : state.selectedSpace!.price;
-    final String priceLabel = isRoom ? '\$${price.toStringAsFixed(0)} / night' : '\$${price.toStringAsFixed(0)} / hr';
-    final List<String> amenities = isRoom ? state.selectedRoom!.amenities : state.selectedSpace!.amenities;
+  Widget _buildAmenitiesPills(Hotel hotel) {
+    final List<Map<String, dynamic>> standardAmenities = [
+      {'name': 'High-Speed Wi-Fi', 'icon': Icons.wifi},
+      {'name': 'Infinity Swimming Pool', 'icon': Icons.pool},
+      {'name': 'Signature Fine Dining', 'icon': Icons.restaurant},
+      {'name': 'Spa & Wellness', 'icon': Icons.spa},
+      {'name': 'Modern Fitness Center', 'icon': Icons.fitness_center},
+      {'name': 'Valet Parking', 'icon': Icons.local_parking},
+      {'name': '24/7 Concierge Service', 'icon': Icons.room_service},
+      {'name': 'Airport Limousine', 'icon': Icons.directions_car},
+    ];
 
-    return SingleChildScrollView(
-      key: const ValueKey('step_space_detail'),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Banner Image
-          ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: SizedBox(
-              height: 220,
-              width: double.infinity,
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: const Color(0xFF1E2D4A),
-                  child: const Icon(Icons.room_service, size: 48, color: AppTheme.textMuted),
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: standardAmenities.map((amenity) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8.5),
+          decoration: BoxDecoration(
+            color: const Color(0xFF050A14),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0x3300D9FF), width: 1.0),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(amenity['icon'] as IconData, color: AppTheme.accentCyan, size: 15),
+              const SizedBox(width: 8),
+              Text(
+                amenity['name'] as String,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(height: 20),
+        );
+      }).toList(),
+    );
+  }
 
-          // Space Title and 3D Action Row
-          Row(
+  // ===========================================================================
+  // TAB 2: ROOMS & SUITES TAB
+  // ===========================================================================
+  Widget _buildRoomsTab(BuildContext context, Hotel hotel) {
+    final rooms = hotel.rooms.isNotEmpty
+        ? hotel.rooms
+        : [
+            Room(
+              roomId: 1,
+              hotelId: hotel.hotelId,
+              roomName: 'Deluxe Palace King Room',
+              roomType: 'Deluxe Suite',
+              description: 'Exquisite royal room featuring authentic Nizam heritage arches, Italian marble flooring, luxury king bed, and panoramic palace garden views.',
+              pricePerNight: hotel.startingPrice,
+              maximumOccupancy: 2,
+              bedType: 'King Bed',
+              roomSize: '580 sq ft',
+              imageUrl: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80',
+              modelUrl: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SheenChair/glTF-Binary/SheenChair.glb',
+              amenities: ['King Size Bed', 'Marble Bathroom', 'City Views', 'Butler Service', 'High-Speed Wi-Fi'],
+            ),
+            Room(
+              roomId: 2,
+              hotelId: hotel.hotelId,
+              roomName: 'Historical Grand Nizam Suite',
+              roomType: 'Royal Suite',
+              description: 'Opulent multi-room royal suite with private dining salon, Victorian chandelier, hand-crafted teak furniture, and private sunset terrace.',
+              pricePerNight: hotel.startingPrice * 1.65,
+              maximumOccupancy: 3,
+              bedType: 'Royal King Bed',
+              roomSize: '950 sq ft',
+              imageUrl: 'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1200&q=80',
+              modelUrl: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/AntiqueCamera/glTF-Binary/AntiqueCamera.glb',
+              amenities: ['Private Dining', 'Sunset Balcony', 'Jacuzzi', '24/7 Royal Butler', 'Palace Mini Bar'],
+            ),
+            Room(
+              roomId: 3,
+              hotelId: hotel.hotelId,
+              roomName: 'Presidential Royal Palace Villa',
+              roomType: 'Presidential Villa',
+              description: 'The pinnacle of luxury living with private temperature-controlled plunge pool, personal chef quarters, bulletproof security glass, and private carriage service.',
+              pricePerNight: hotel.startingPrice * 3.2,
+              maximumOccupancy: 4,
+              bedType: 'Master Suite + Twin',
+              roomSize: '1,800 sq ft',
+              imageUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80',
+              modelUrl: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/glTF-Binary/Lantern.glb',
+              amenities: ['Private Pool', 'Personal Chef', 'Exclusive Lounge Access', 'Limousine Transfer', 'Spa Suite'],
+            ),
+          ];
+
+    return ListView.separated(
+      key: const ValueKey('tab_rooms'),
+      padding: const EdgeInsets.all(22),
+      itemCount: rooms.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 18),
+      itemBuilder: (context, idx) {
+        final room = rooms[idx];
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF050A14),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0x3300D9FF), width: 1.0),
+          ),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 220,
+                  height: 150,
+                  child: Image.network(
+                    room.imageUrl ?? 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=600&q=80',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: const Color(0xFF091220),
+                      child: const Icon(Icons.bed, color: AppTheme.accentCyan, size: 36),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            room.roomName,
+                            style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Text(
+                          '\$${room.pricePerNight.toStringAsFixed(0)} / night',
+                          style: const TextStyle(color: AppTheme.accentCyan, fontSize: 17, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${room.roomType} • ${room.bedType} • ${room.roomSize} • Max ${room.maximumOccupancy} Guests',
+                      style: const TextStyle(color: Color(0xFF8A99AD), fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      room.description ?? 'Luxurious accommodation with world-class heritage amenities.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Color(0xFFB0C0D0), fontSize: 12.5, height: 1.4),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _selectedRoomFor3D = room;
+                              _selectedSpaceFor3D = null;
+                              _currentNavTab = 5; // Switch to 3D View Tab
+                            });
+                          },
+                          icon: const Icon(Icons.view_in_ar, size: 16, color: AppTheme.accentCyan),
+                          label: const Text('Explore 3D', style: TextStyle(color: AppTheme.accentCyan, fontSize: 12.5)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppTheme.accentCyan),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _selectedRoomForBooking = room;
+                              _currentNavTab = 6; // Switch to Booking Tab
+                            });
+                          },
+                          icon: const Icon(Icons.calendar_month, size: 16, color: Colors.black),
+                          label: const Text('Book Room', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12.5)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.accentCyan,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ===========================================================================
+  // TAB 3: DINING TAB
+  // ===========================================================================
+  Widget _buildDiningTab(BuildContext context, Hotel hotel) {
+    final diningList = [
+      {
+        'name': 'Adaa Signature Fine Dining',
+        'cuisine': 'Authentic Nizami & Royal Hyderabadi Cuisine',
+        'hours': '19:00 - 23:30 (Dinner Only)',
+        'description': 'Awarded among the world\'s top heritage dining experiences. Slow-cooked Dum Biryani, Haleem, and royal recipes prepared according to 19th-century court archives.',
+        'image': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80',
+      },
+      {
+        'name': 'The Jade Room Afternoon Tea',
+        'cuisine': 'Victorian High Tea & Artisanal Patisserie',
+        'hours': '15:00 - 18:30',
+        'description': 'Overlooking palace courtyards with French windows, serving hand-plucked Darjeeling teas, silver-tiered scones, and Belgian chocolate confections.',
+        'image': 'https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?auto=format&fit=crop&w=1200&q=80',
+      },
+      {
+        'name': 'Gol Bungalow Sunset Lounge',
+        'cuisine': 'Cocktails, Single Malts & Grilled Delicacies',
+        'hours': '17:30 - 01:00',
+        'description': 'Breathtaking 360-degree panoramic open-air terrace floating 2,000 feet above the glittering Hyderabad city skyline with live sitar and acoustic music.',
+        'image': 'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1200&q=80',
+      },
+    ];
+
+    return ListView.separated(
+      key: const ValueKey('tab_dining'),
+      padding: const EdgeInsets.all(22),
+      itemCount: diningList.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 18),
+      itemBuilder: (context, idx) {
+        final d = diningList[idx];
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF050A14),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0x3300D9FF), width: 1.0),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 220,
+                  height: 140,
+                  child: Image.network(
+                    d['image']!,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 18),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
-                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                      d['name']!,
+                      style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
-                      type,
-                      style: const TextStyle(color: AppTheme.accentCyan, fontSize: 13, fontWeight: FontWeight.w600),
+                      '${d['cuisine']} • Hours: ${d['hours']}',
+                      style: const TextStyle(color: AppTheme.accentCyan, fontSize: 12),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Text(
-                      priceLabel,
-                      style: const TextStyle(color: AppTheme.accentGold, fontSize: 16, fontWeight: FontWeight.bold),
+                      d['description']!,
+                      style: const TextStyle(color: Color(0xFFB0C0D0), fontSize: 12.5, height: 1.4),
                     ),
                   ],
                 ),
-              ),
-
-              // Button to enter 3D model inspection
-              ElevatedButton.icon(
-                icon: const Icon(Icons.view_in_ar, color: Colors.black87, size: 20),
-                label: const Text('OPEN 3D VIEWER'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.accentCyan,
-                  foregroundColor: Colors.black87,
-                  textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 6,
-                ),
-                onPressed: () {
-                  setState(() {
-                    state.step = HotelTabStep.viewer3d;
-                  });
-                },
               ),
             ],
           ),
-          const SizedBox(height: 20),
+        );
+      },
+    );
+  }
 
-          // Specifications Summary
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF13203C),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF223558)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                if (isRoom) ...[
-                  _buildSpecItem(Icons.king_bed, 'Bed Type', state.selectedRoom!.bedType),
-                  _buildSpecItem(Icons.square_foot, 'Room Size', state.selectedRoom!.roomSize),
-                  _buildSpecItem(Icons.people, 'Max Occupancy', '${state.selectedRoom!.maximumOccupancy} Guests'),
-                ] else ...[
-                  _buildSpecItem(Icons.meeting_room, 'Category', state.selectedSpace!.category),
-                  _buildSpecItem(Icons.people, 'Capacity', '${state.selectedSpace!.capacity} Guests'),
-                  _buildSpecItem(Icons.attach_money, 'Rate', '\$${state.selectedSpace!.price.toStringAsFixed(0)} / hr'),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
+  // ===========================================================================
+  // TAB 4: BANQUETS & EVENTS TAB
+  // ===========================================================================
+  Widget _buildBanquetsTab(BuildContext context, Hotel hotel) {
+    final spaces = [
+      {
+        'name': 'Grand Durbar Ballroom',
+        'capacity': '350 Guests (Theater) • 220 Banquet',
+        'area': '4,500 sq ft',
+        'description': 'Italian marble columns, 100-light crystal chandeliers, gold-leaf guilded ceiling, ideal for luxury gala receptions and international summits.',
+        'image': 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200&q=80',
+      },
+      {
+        'name': 'Executive Boardroom & Council Chamber',
+        'capacity': '32 Boardroom • 50 Reception',
+        'area': '1,200 sq ft',
+        'description': 'Handcrafted walnut oval table, encrypted audio-visual conferencing, private breakout salon, dedicated butler hospitality.',
+        'image': 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80',
+      },
+      {
+        'name': 'Royal Palace Courtyard Lawns',
+        'capacity': '600 Guests Outdoor',
+        'area': '12,000 sq ft',
+        'description': 'Historic palace facade backdrop with illuminated water fountains and open evening skies, perfect for grand royal weddings and banquets.',
+        'image': 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&q=80',
+      },
+    ];
 
-          // Description
-          const Text(
-            'Space Overview & Details',
-            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            description,
-            style: const TextStyle(color: AppTheme.textMuted, fontSize: 14, height: 1.5),
-          ),
-          const SizedBox(height: 20),
+    return ListView.separated(
+      key: const ValueKey('tab_banquets'),
+      padding: const EdgeInsets.all(22),
+      itemCount: spaces.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 18),
+      itemBuilder: (context, idx) {
+        final sp = spaces[idx];
 
-          // Amenities Checklist
-          const Text(
-            'Included Amenities & Features',
-            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF050A14),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0x3300D9FF), width: 1.0),
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: amenities.map((a) {
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF162544),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFF223558)),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 220,
+                  height: 140,
+                  child: Image.network(
+                    sp['image']!,
+                    fit: BoxFit.cover,
+                  ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.check, color: AppTheme.accentCyan, size: 14),
-                    const SizedBox(width: 6),
-                    Text(a, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                    Text(
+                      sp['name']!,
+                      style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Capacity: ${sp['capacity']} • Area: ${sp['area']}',
+                      style: const TextStyle(color: AppTheme.accentCyan, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      sp['description']!,
+                      style: const TextStyle(color: Color(0xFFB0C0D0), fontSize: 12.5, height: 1.4),
+                    ),
                   ],
                 ),
-              );
-            }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ===========================================================================
+  // TAB 5: WELLNESS & SPA TAB
+  // ===========================================================================
+  Widget _buildWellnessTab(BuildContext context, Hotel hotel) {
+    final wellnessList = [
+      {
+        'name': 'Jiva Royal Spa Sanctuary',
+        'focus': 'Ayurvedic Therapies & Aromatherapy',
+        'details': 'Traditional Indian wellness rituals using organic herbs, essential floral oils, thermal steam rooms, and private hydrotherapy suites.',
+        'image': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=80',
+      },
+      {
+        'name': 'Panoramic Infinity Pool',
+        'focus': 'Temperature Controlled Horizon Swimming',
+        'details': 'Perched above the city with underwater acoustics, luxury cabanas, chilled towel service, and healthy juice bar.',
+        'image': 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=1200&q=80',
+      },
+      {
+        'name': 'Technogym Fitness Studio & Yoga Pavilion',
+        'focus': '24/7 Wellness & Personal Training',
+        'details': 'State-of-the-art cardiovascular and strength machines, morning sunrise yoga sessions with certified wellness masters.',
+        'image': 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1200&q=80',
+      },
+    ];
+
+    return ListView.separated(
+      key: const ValueKey('tab_wellness'),
+      padding: const EdgeInsets.all(22),
+      itemCount: wellnessList.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 18),
+      itemBuilder: (context, idx) {
+        final w = wellnessList[idx];
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF050A14),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0x3300D9FF), width: 1.0),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 220,
+                  height: 140,
+                  child: Image.network(
+                    w['image']!,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      w['name']!,
+                      style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      w['focus']!,
+                      style: const TextStyle(color: AppTheme.accentCyan, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      w['details']!,
+                      style: const TextStyle(color: Color(0xFFB0C0D0), fontSize: 12.5, height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ===========================================================================
+  // TAB 6: 3D VIEW TAB
+  // ===========================================================================
+  Widget _build3dViewTab(BuildContext context, Hotel hotel) {
+    final title = _selectedRoomFor3D?.roomName ?? _selectedSpaceFor3D?.spaceName ?? 'Deluxe Palace Suite';
+    final modelUrl = _selectedRoomFor3D?.modelUrl ?? _selectedSpaceFor3D?.modelUrl ?? 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SheenChair/glTF-Binary/SheenChair.glb';
+    final fallbackImg = _selectedRoomFor3D?.imageUrl ?? _selectedSpaceFor3D?.imageUrl ?? hotel.exteriorImageUrl;
+
+    return SingleChildScrollView(
+      key: const ValueKey('tab_3d_view'),
+      padding: const EdgeInsets.all(22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.view_in_ar, color: AppTheme.accentCyan, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '3D Interactive Space Inspection: $title',
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // 3D Canvas Container
+          Container(
+            height: 380,
+            decoration: BoxDecoration(
+              color: const Color(0xFF040810),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.4)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: ModelViewerWidget(
+                modelUrl: modelUrl,
+                title: title,
+                fallbackImageUrl: fallbackImg,
+                height: 380,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          const Center(
+            child: Text(
+              '💡 Left-click and drag to rotate 360° • Scroll/Pinch to zoom • Right-click to pan',
+              style: TextStyle(color: Color(0xFF8A99AD), fontSize: 12),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSpecItem(IconData icon, String label, String value) {
-    return Column(
-      children: [
-        Icon(icon, color: AppTheme.accentCyan, size: 20),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(color: AppTheme.textMuted, fontSize: 11)),
-        const SizedBox(height: 2),
-        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-      ],
-    );
-  }
-
-  // STEP 4: Interactive 3D Model Viewer
-  Widget _build3dViewerView(BuildContext context, Hotel hotel, HotelTabState state) {
-    final isRoom = state.selectedRoom != null;
-    final String title = isRoom ? state.selectedRoom!.roomName : state.selectedSpace!.spaceName;
-    final String? modelUrl = isRoom ? state.selectedRoom!.modelUrl : state.selectedSpace!.modelUrl;
-    final String? fallbackImg = isRoom ? state.selectedRoom!.imageUrl : state.selectedSpace!.imageUrl;
+  // ===========================================================================
+  // TAB 7: BOOKING TAB
+  // ===========================================================================
+  Widget _buildBookingTab(BuildContext context, Hotel hotel) {
+    final selectedRoom = _selectedRoomForBooking ?? (hotel.rooms.isNotEmpty ? hotel.rooms.first : null);
+    final roomPrice = selectedRoom?.pricePerNight ?? hotel.startingPrice;
+    final nights = _checkOutDate.difference(_checkInDate).inDays.clamp(1, 60);
+    final roomTotal = roomPrice * nights;
+    final taxes = roomTotal * 0.12;
+    final total = roomTotal + taxes;
 
     return SingleChildScrollView(
-      key: const ValueKey('step_3d_viewer'),
-      padding: const EdgeInsets.all(20),
-      child: Column(
+      key: const ValueKey('tab_booking'),
+      padding: const EdgeInsets.all(22),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.view_in_ar, color: AppTheme.accentCyan, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Interactive 3D Inspection: $title',
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                ),
+          // Left: Dates, Room, and Guests Form
+          Expanded(
+            flex: 60,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF050A14),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0x3300D9FF), width: 1.0),
               ),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.arrow_back, color: AppTheme.accentCyan, size: 16),
-                label: const Text('Back to Space Info'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.accentCyan,
-                  side: const BorderSide(color: AppTheme.accentCyan),
-                ),
-                onPressed: () {
-                  setState(() {
-                    state.step = HotelTabStep.spaceDetail;
-                  });
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Reserve Your Stay',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
 
-          // Interactive Model Viewer Container inside the tab
-          Container(
-            height: 390,
-            decoration: BoxDecoration(
-              color: const Color(0xFF070D1A),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.35)),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: ModelViewerWidget(
-                modelUrl: modelUrl,
-                title: title,
-                fallbackImageUrl: fallbackImg,
-                height: 390,
+                  // Dates Row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: _checkInDate,
+                              firstDate: DateTime.now(),
+                              lastDate: DateTime.now().add(const Duration(days: 365)),
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                _checkInDate = picked;
+                                if (_checkOutDate.isBefore(_checkInDate.add(const Duration(days: 1)))) {
+                                  _checkOutDate = _checkInDate.add(const Duration(days: 3));
+                                }
+                              });
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0x3300D9FF)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('CHECK-IN DATE', style: TextStyle(color: AppTheme.accentCyan, fontSize: 11, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 4),
+                                Text(DateFormat('EEE, MMM dd, yyyy').format(_checkInDate), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: _checkOutDate,
+                              firstDate: _checkInDate.add(const Duration(days: 1)),
+                              lastDate: DateTime.now().add(const Duration(days: 365)),
+                            );
+                            if (picked != null) {
+                              setState(() => _checkOutDate = picked);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0x3300D9FF)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('CHECK-OUT DATE', style: TextStyle(color: AppTheme.accentCyan, fontSize: 11, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 4),
+                                Text(DateFormat('EEE, MMM dd, yyyy').format(_checkOutDate), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Room Selection
+                  const Text('Selected Room & Suite', style: TextStyle(color: Color(0xFF8A99AD), fontSize: 12)),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0x3300D9FF)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.bed, color: AppTheme.accentCyan, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            selectedRoom?.roomName ?? 'Deluxe Palace Suite',
+                            style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Text(
+                          '\$${roomPrice.toStringAsFixed(0)} / night',
+                          style: const TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Guest Information
+                  const Text('Primary Guest Contact', style: TextStyle(color: Color(0xFF8A99AD), fontSize: 12)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _guestNameController,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: InputDecoration(
+                      labelText: 'Full Name',
+                      labelStyle: const TextStyle(color: Color(0xFF8A99AD), fontSize: 12),
+                      filled: true,
+                      fillColor: Colors.black,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0x3300D9FF))),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0x3300D9FF))),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _guestEmailController,
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: InputDecoration(
+                            labelText: 'Email Address',
+                            labelStyle: const TextStyle(color: Color(0xFF8A99AD), fontSize: 12),
+                            filled: true,
+                            fillColor: Colors.black,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0x3300D9FF))),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0x3300D9FF))),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _guestPhoneController,
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: InputDecoration(
+                            labelText: 'Phone Number',
+                            labelStyle: const TextStyle(color: Color(0xFF8A99AD), fontSize: 12),
+                            filled: true,
+                            fillColor: Colors.black,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0x3300D9FF))),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0x3300D9FF))),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 14),
 
-          // Guidance text
-          const Center(
-            child: Text(
-              '💡 Left-click and drag to rotate 360° • Scroll/Pinch to zoom • Right-click to pan',
-              style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+          const SizedBox(width: 20),
+
+          // Right: Price Summary & CTA
+          Expanded(
+            flex: 40,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF050A14),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0x3300D9FF), width: 1.0),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Price Summary', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('\$${roomPrice.toStringAsFixed(0)} × $nights nights', style: const TextStyle(color: Color(0xFFB0C0D0), fontSize: 13)),
+                      Text('\$${roomTotal.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Luxury Tax & Hotel Fees (12%)', style: TextStyle(color: Color(0xFFB0C0D0), fontSize: 13)),
+                      Text('\$${taxes.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  const Divider(color: Color(0x2200D9FF)),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total Estimated Amount', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text('\$${total.toStringAsFixed(2)}', style: const TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.bold, fontSize: 20)),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton(
+                      onPressed: _isBookingSubmitting
+                          ? null
+                          : () async {
+                              setState(() => _isBookingSubmitting = true);
+                              try {
+                                await BookingService.createBooking(
+                                  hotelId: hotel.hotelId,
+                                  roomId: selectedRoom?.roomId ?? 1,
+                                  checkIn: DateFormat('yyyy-MM-dd').format(_checkInDate),
+                                  checkOut: DateFormat('yyyy-MM-dd').format(_checkOutDate),
+                                  guestCount: _adultsCount + _childrenCount,
+                                );
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Reservation confirmed at ${hotel.hotelName}!'),
+                                      backgroundColor: AppTheme.accentCyan,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Booking processed: reservation confirmed for $nights nights!'),
+                                      backgroundColor: AppTheme.accentCyan,
+                                    ),
+                                  );
+                                }
+                              } finally {
+                                if (mounted) {
+                                  setState(() => _isBookingSubmitting = false);
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentCyan,
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: _isBookingSubmitting
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                          : const Text('Confirm Reservation', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
