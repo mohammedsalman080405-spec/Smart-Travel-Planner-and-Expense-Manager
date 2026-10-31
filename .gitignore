@@ -15,5 +15,11 @@ frontend/build/
 frontend/.pub-cache/
 frontend/.pub/
 
-# macOS
+# macOS / IDE
 .DS_Store
+*.iml
+.idea/
+
+# Temporary / Scratch
+scratch/
+
