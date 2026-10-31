@@ -52,9 +52,7 @@ class HotelSearchService:
                 dist = haversine_distance(latitude, longitude, p['latitude'], p['longitude'])
                 p['distance_km'] = dist
                 p['formatted_distance'] = f"{dist:.1f} km from center"
-                p['starting_price'] = p.get('starting_price', 280.0)
-                p['currency'] = 'USD'
-                p['facilities'] = ['High-Speed Wi-Fi', 'Swimming Pool', 'Fine Dining', 'Fitness Gym']
+                p['starting_price'] = p.get('starting_price')
                 results.append(p)
 
         # 2. Database query (verified seeded properties / fallback mode)

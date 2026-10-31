@@ -5,6 +5,7 @@ import '../../config/theme.dart';
 import '../../models/booking.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/booking_provider.dart';
+import '../../services/currency_formatter.dart';
 import '../../widgets/loading_widget.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
@@ -183,7 +184,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                                         ),
                                         const SizedBox(height: 6),
                                         Text(
-                                          'Total: \$${b.totalAmount.toStringAsFixed(2)} ${b.currency}',
+                                          'Total: ${CurrencyFormatter.format(b.totalAmount)}',
                                           style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                                         ),
                                       ],

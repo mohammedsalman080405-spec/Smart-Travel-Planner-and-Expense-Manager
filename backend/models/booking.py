@@ -1,5 +1,6 @@
 from datetime import datetime
 from extensions import db
+from currency import amount_in_inr
 
 class Booking(db.Model):
     __tablename__ = 'bookings'
@@ -15,7 +16,7 @@ class Booking(db.Model):
     number_of_nights = db.Column(db.Integer, nullable=False)
     price_per_night = db.Column(db.Numeric(10, 2), nullable=False)
     total_amount = db.Column(db.Numeric(10, 2), nullable=False)
-    currency = db.Column(db.String(10), default='USD')
+    currency = db.Column(db.String(10), default='INR')
     booking_status = db.Column(db.String(30), default='confirmed')  # confirmed, cancelled, completed
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -42,9 +43,9 @@ class Booking(db.Model):
             'check_out': self.check_out.isoformat() if self.check_out else None,
             'guest_count': self.guest_count,
             'number_of_nights': self.number_of_nights,
-            'price_per_night': float(self.price_per_night) if self.price_per_night is not None else 0.0,
-            'total_amount': float(self.total_amount) if self.total_amount is not None else 0.0,
-            'currency': self.currency,
+            'price_per_night': float(amount_in_inr(self.price_per_night, self.currency)),
+            'total_amount': float(amount_in_inr(self.total_amount, self.currency)),
+            'currency': 'INR',
             'booking_status': self.booking_status,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }

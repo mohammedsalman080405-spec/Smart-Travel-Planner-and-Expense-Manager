@@ -2,6 +2,7 @@ from datetime import datetime, date
 from models.booking import Booking
 from models.room import Room
 from extensions import db
+from currency import amount_in_inr
 
 class BookingService:
     @staticmethod
@@ -10,7 +11,7 @@ class BookingService:
         if nights <= 0:
             raise ValueError("Check-out date must be after check-in date.")
 
-        price_per_night = float(room.price_per_night)
+        price_per_night = float(amount_in_inr(room.price_per_night, room.currency))
         subtotal = round(price_per_night * nights, 2)
         taxes_and_fees = round(subtotal * 0.12, 2) # Standard 12% demo tax & service charge
         total_amount = round(subtotal + taxes_and_fees, 2)
@@ -21,7 +22,7 @@ class BookingService:
             'subtotal': subtotal,
             'taxes_and_fees': taxes_and_fees,
             'total_amount': total_amount,
-            'currency': room.currency or 'USD'
+            'currency': 'INR'
         }
 
     @staticmethod

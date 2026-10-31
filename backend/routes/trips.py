@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from models.trip import Trip, TripActivity, TripDestination
 from services.budget_service import BudgetService
 from extensions import db
@@ -18,6 +19,15 @@ def create_trip():
     start_date_str = data.get('start_date')
     end_date_str = data.get('end_date')
     traveller_count = data.get('traveller_count', 1)
+    try:
+        total_trip_budget = Decimal(str(data.get('total_trip_budget', '0')))
+    except (InvalidOperation, TypeError, ValueError):
+        return jsonify({'error': 'total_trip_budget must be a valid number'}), 400
+
+    if not total_trip_budget.is_finite() or total_trip_budget <= 0:
+        return jsonify({'error': 'total_trip_budget must be greater than zero'}), 400
+    if total_trip_budget > Decimal('9999999999.99') or total_trip_budget.as_tuple().exponent < -2:
+        return jsonify({'error': 'total_trip_budget must fit DECIMAL(12, 2)'}), 400
 
     if not trip_name or not destination or not start_date_str or not end_date_str:
         return jsonify({'error': 'trip_name, destination, start_date, and end_date are required'}), 400
@@ -38,13 +48,18 @@ def create_trip():
         start_date=start_date,
         end_date=end_date,
         traveller_count=traveller_count,
+        total_trip_budget=total_trip_budget,
+        currency='INR',
         status='planned'
     )
     db.session.add(trip)
     db.session.commit()
 
     # Automatically initialize a budget for the trip
-    BudgetService.get_or_create_budget(trip.trip_id)
+    budget = BudgetService.get_or_create_budget(trip.trip_id)
+    budget.total_budget = total_trip_budget
+    budget.currency = 'INR'
+    db.session.commit()
 
     return jsonify({
         'message': 'Trip created successfully',

@@ -1,3 +1,4 @@
+import hashlib
 import requests
 from flask import current_app
 
@@ -57,16 +58,20 @@ class PlacesService:
                         if photo_ref:
                             photo_url = f"https://places.googleapis.com/v1/{photo_ref}/media?key={api_key}&maxHeightPx=800"
 
+                    place_id = p.get('id') or ''
+                    stable_id = int(hashlib.sha1(place_id.encode('utf-8')).hexdigest()[:7], 16) + 1
                     results.append({
+                        # Negative IDs keep live Places records distinct from database hotel IDs.
+                        'hotel_id': -stable_id,
                         "place_id": p.get("id"),
                         "hotel_name": disp_name,
                         "address": p.get("formattedAddress", ""),
                         "latitude": loc.get("latitude"),
                         "longitude": loc.get("longitude"),
-                        "star_rating": float(p.get("rating", 4.5)),
-                        "review_rating": float(p.get("rating", 4.5)),
-                        "review_count": int(p.get("userRatingCount", 120)),
-                        "exterior_image_url": photo_url or "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80",
+                        "star_rating": float(p["rating"]) if p.get("rating") is not None else None,
+                        "review_rating": float(p["rating"]) if p.get("rating") is not None else None,
+                        "review_count": int(p.get("userRatingCount", 0)),
+                        "exterior_image_url": photo_url,
                         "google_maps_uri": p.get("googleMapsUri"),
                         "data_source": "google_places_new",
                         "is_demo": False

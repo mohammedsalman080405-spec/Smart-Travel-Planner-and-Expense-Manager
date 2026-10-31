@@ -33,7 +33,7 @@ class ExpenseProvider extends ChangeNotifier {
     required double amount,
     required String expenseDate,
     String? description,
-    String currency = 'USD',
+    String currency = 'INR',
   }) async {
     _isLoading = true;
     _errorMessage = null;

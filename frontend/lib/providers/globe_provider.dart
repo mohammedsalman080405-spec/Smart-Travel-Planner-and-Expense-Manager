@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 
 class GlobeProvider extends ChangeNotifier {
   // Current focal coordinates
-  double _targetLatitude = 17.385044; // Default Hyderabad / Central
-  double _targetLongitude = 78.486671;
-  double _currentLatitude = 17.385044;
-  double _currentLongitude = 78.486671;
+  double _targetLatitude = 20.0;
+  double _targetLongitude = 20.0;
+  double _currentLatitude = 20.0;
+  double _currentLongitude = 20.0;
 
   double _zoomLevel = 1.0;
+  double _targetCameraDistance = 15.8;
   bool _isAutoRotating = true;
   bool _isAnimatingToTarget = false;
 
@@ -16,12 +17,19 @@ class GlobeProvider extends ChangeNotifier {
   double get currentLatitude => _currentLatitude;
   double get currentLongitude => _currentLongitude;
   double get zoomLevel => _zoomLevel;
+  double get targetCameraDistance => _targetCameraDistance;
   bool get isAutoRotating => _isAutoRotating;
   bool get isAnimatingToTarget => _isAnimatingToTarget;
 
-  void setCoordinates(double lat, double lng, {bool animate = true}) {
+  void setCoordinates(
+    double lat,
+    double lng, {
+    bool animate = true,
+    double cameraDistance = 17.0,
+  }) {
     _targetLatitude = lat;
     _targetLongitude = lng;
+    _targetCameraDistance = cameraDistance;
     _isAutoRotating = false;
 
     if (animate) {
@@ -58,9 +66,14 @@ class GlobeProvider extends ChangeNotifier {
   }
 
   void resetView() {
+    _targetLatitude = 20.0;
+    _targetLongitude = 20.0;
+    _currentLatitude = 20.0;
+    _currentLongitude = 20.0;
     _zoomLevel = 1.0;
+    _targetCameraDistance = 15.8;
     _isAutoRotating = true;
-    _isAnimatingToTarget = false;
+    _isAnimatingToTarget = true;
     notifyListeners();
   }
 }

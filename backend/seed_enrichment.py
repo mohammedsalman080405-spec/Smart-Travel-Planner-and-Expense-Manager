@@ -11,8 +11,11 @@ from models.hotel_image import HotelImage
 from models.room import Room
 from models.room_image import RoomImage
 from models.hotel_space import HotelSpace
+from currency import amount_in_inr
 
 app = create_app()
+
+COMPLETE_ROOM_MODEL = "https://cdn.3dassets.dev/assets/38818/v1/model.glb"
 
 ADDITIONAL_HOTELS = [
     # ------------------ DUBAI HOTELS ------------------
@@ -552,8 +555,8 @@ def run():
                 star_rating=info["star_rating"],
                 review_rating=info["review_rating"],
                 review_count=info["review_count"],
-                starting_price=info["starting_price"],
-                currency="USD",
+                starting_price=amount_in_inr(info["starting_price"], "USD"),
+                currency="INR",
                 exterior_image_url=info["exterior_image_url"],
                 exterior_model_url=GLB_ROOM_MODELS[0],
                 is_demo=True,
@@ -573,13 +576,13 @@ def run():
                 room_name="Grand Presidential Luxury Suite",
                 room_type="Presidential Suite",
                 description=f"Expansive master suite at {info['hotel_name']} featuring floor-to-ceiling panoramic views, marble ensuite bath, bespoke artisan furnishings, and high-tech climate controls.",
-                price_per_night=info["starting_price"] * 1.35,
-                currency="USD",
+                price_per_night=amount_in_inr(info["starting_price"] * 1.35, "USD"),
+                currency="INR",
                 maximum_occupancy=3,
                 bed_type="King Bed",
                 room_size="85 sq.m",
                 image_url=info["exterior_image_url"],
-                model_url=GLB_ROOM_MODELS[added % len(GLB_ROOM_MODELS)],
+                model_url=COMPLETE_ROOM_MODEL,
                 availability_status="available"
             )
             db.session.add(room)
@@ -602,8 +605,8 @@ def run():
                 model_url=GLB_ROOM_MODELS[1],
                 image_url=info["exterior_image_url"],
                 capacity=350,
-                price=1200.0,
-                currency="USD"
+                price=amount_in_inr(1200.0, "USD"),
+                currency="INR"
             )
             space2 = HotelSpace(
                 hotel_id=hotel.hotel_id,
@@ -613,8 +616,8 @@ def run():
                 model_url=GLB_ROOM_MODELS[2],
                 image_url=info["exterior_image_url"],
                 capacity=40,
-                price=180.0,
-                currency="USD"
+                price=amount_in_inr(180.0, "USD"),
+                currency="INR"
             )
             db.session.add(space1)
             db.session.add(space2)

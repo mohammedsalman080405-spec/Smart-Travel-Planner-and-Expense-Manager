@@ -1,7 +1,9 @@
 from models.budget import Budget
 from models.expense import Expense
+from models.trip import Trip
 from extensions import db
 from sqlalchemy import func
+from currency import amount_in_inr
 
 class BudgetService:
     @staticmethod
@@ -17,7 +19,7 @@ class BudgetService:
                 shopping_budget=0.0,
                 other_budget=0.0,
                 total_budget=0.0,
-                currency='USD'
+                currency='INR'
             )
             db.session.add(budget)
             db.session.commit()
@@ -28,8 +30,14 @@ class BudgetService:
         budget = BudgetService.get_or_create_budget(trip_id)
         expenses = Expense.query.filter_by(trip_id=trip_id).all()
 
-        total_spent = sum(float(e.amount) for e in expenses)
-        total_budget = float(budget.total_budget) if budget.total_budget else 0.0
+        total_spent = sum(float(amount_in_inr(e.amount, e.currency)) for e in expenses)
+        trip = Trip.query.get(trip_id)
+        configured_budget = (
+            trip.total_trip_budget
+            if trip and trip.total_trip_budget and float(trip.total_trip_budget) > 0
+            else budget.total_budget
+        )
+        total_budget = float(amount_in_inr(configured_budget, budget.currency))
 
         # Category-wise spent
         category_spending = {
@@ -44,17 +52,17 @@ class BudgetService:
         for e in expenses:
             cat = e.category
             if cat in category_spending:
-                category_spending[cat] += float(e.amount)
+                category_spending[cat] += float(amount_in_inr(e.amount, e.currency))
             else:
-                category_spending['Other'] += float(e.amount)
+                category_spending['Other'] += float(amount_in_inr(e.amount, e.currency))
 
         category_budgets = {
-            'Accommodation': float(budget.accommodation_budget or 0),
-            'Transportation': float(budget.transport_budget or 0),
-            'Food': float(budget.food_budget or 0),
-            'Activities': float(budget.activities_budget or 0),
-            'Shopping': float(budget.shopping_budget or 0),
-            'Other': float(budget.other_budget or 0)
+            'Accommodation': float(amount_in_inr(budget.accommodation_budget, budget.currency)),
+            'Transportation': float(amount_in_inr(budget.transport_budget, budget.currency)),
+            'Food': float(amount_in_inr(budget.food_budget, budget.currency)),
+            'Activities': float(amount_in_inr(budget.activities_budget, budget.currency)),
+            'Shopping': float(amount_in_inr(budget.shopping_budget, budget.currency)),
+            'Other': float(amount_in_inr(budget.other_budget, budget.currency))
         }
 
         remaining_balance = round(total_budget - total_spent, 2)
@@ -66,7 +74,7 @@ class BudgetService:
             'total_spent': round(total_spent, 2),
             'remaining_balance': remaining_balance,
             'percentage_used': percentage_used,
-            'currency': budget.currency,
+            'currency': 'INR',
             'category_budgets': category_budgets,
             'category_spending': {k: round(v, 2) for k, v in category_spending.items()},
             'budget': budget.to_dict()

@@ -1,5 +1,7 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+
 import '../config/theme.dart';
 
 class TravelHeroSection extends StatelessWidget {
@@ -18,79 +20,73 @@ class TravelHeroSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Exact left indentation matching reference image (x = 138 at 1024 width):
-    // Pushes headline and copy into the open evening sky above the pool,
-    // completely clear of the left villa architecture and pool furniture
-    final isDesktop = screenWidth >= 960;
-    final headlineLeftPadding = isDesktop ? 136.0 : (screenWidth >= 650 ? 48.0 : 24.0);
-    final topGap = isDesktop
-        ? (screenHeight >= 750 ? 84.0 : 68.0)
-        : 28.0;
+    final desktop = screenWidth >= 960;
+    final scale = desktop
+        ? math.min(screenHeight / 900, screenWidth / 1600).clamp(0.58, 1.0)
+        : (screenWidth >= 650 ? 0.55 : 0.42);
+    final left = desktop ? 220 * scale : (screenWidth >= 650 ? 48.0 : 24.0);
 
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Top-Left Branding
           if (showBranding)
             Padding(
-              padding: const EdgeInsets.only(left: 44, top: 22),
+              padding: EdgeInsets.only(left: 48 * scale, top: 26 * scale),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 38,
-                    height: 38,
+                    width: 60 * scale,
+                    height: 60 * scale,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color(0xFF00D9FF), Color(0xFF0080FF)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(16 * scale),
                       boxShadow: [
                         BoxShadow(
-                          color: AppTheme.cyanAccent.withValues(alpha: 0.45),
-                          blurRadius: 14,
-                          offset: const Offset(0, 2),
+                          color: AppTheme.cyanAccent.withValues(alpha: .4),
+                          blurRadius: 18,
                         ),
                       ],
                     ),
                     child: Center(
                       child: Transform.rotate(
                         angle: -math.pi / 4,
-                        child: const Icon(
+                        child: Icon(
                           Icons.flight,
                           color: Colors.white,
-                          size: 22,
+                          size: 30 * scale,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 20 * scale),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
+                      Text(
                         'SMART TRAVEL',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w900,
-                          fontSize: 16,
-                          letterSpacing: 1.1,
-                          height: 1.1,
+                          fontSize: 25 * scale,
+                          letterSpacing: .1,
+                          height: 1.05,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      SizedBox(height: 5 * scale),
                       Text(
                         '3D Luxury Travel Planner',
                         style: TextStyle(
                           color: AppTheme.cyanAccent,
-                          fontSize: 11.5,
+                          fontSize: 16 * scale,
                           fontWeight: FontWeight.w600,
-                          letterSpacing: 0.3,
-                          height: 1.1,
+                          height: 1.05,
                         ),
                       ),
                     ],
@@ -98,118 +94,82 @@ class TravelHeroSection extends StatelessWidget {
                 ],
               ),
             ),
-
-          SizedBox(height: topGap),
-
-          // 2. Middle-Left Hero Headline & Copy
+          const Spacer(flex: 1),
           Padding(
-            padding: EdgeInsets.only(left: headlineLeftPadding, right: 32),
+            padding: EdgeInsets.only(left: left, right: 28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'Explore',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 50,
+                    fontSize: 96 * scale,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -1.0,
-                    height: 1.05,
+                    letterSpacing: -3.5 * scale,
+                    height: .98,
                   ),
                 ),
                 Text(
                   'the World',
                   style: TextStyle(
                     color: AppTheme.cyanAccent,
-                    fontSize: 50,
+                    fontSize: 96 * scale,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -1.0,
-                    height: 1.05,
+                    letterSpacing: -3.5 * scale,
+                    height: .98,
                     shadows: [
                       Shadow(
-                        color: AppTheme.cyanAccent.withValues(alpha: 0.45),
-                        blurRadius: 20,
+                        color: AppTheme.cyanAccent.withValues(alpha: .32),
+                        blurRadius: 22,
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 14),
-
-                // Sub-headline: Plan Smarter • Travel Better • Spend Wisely
+                SizedBox(height: 18 * scale),
                 Wrap(
                   crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
+                  spacing: 14 * scale,
                   runSpacing: 4,
                   children: [
-                    const Text(
-                      'Plan Smarter',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14.0,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                    Text(
-                      '•',
-                      style: TextStyle(
-                        color: AppTheme.cyanAccent,
-                        fontSize: 14.0,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const Text(
-                      'Travel Better',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14.0,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                    Text(
-                      '•',
-                      style: TextStyle(
-                        color: AppTheme.cyanAccent,
-                        fontSize: 14.0,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    Text(
-                      'Spend Wisely',
-                      style: TextStyle(
-                        color: AppTheme.cyanAccent,
-                        fontSize: 14.0,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
+                    _tag('Plan Smarter', Colors.white, scale),
+                    _tag('•', AppTheme.cyanAccent, scale),
+                    _tag('Travel Better', Colors.white, scale),
+                    _tag('•', AppTheme.cyanAccent, scale),
+                    _tag('Spend Wisely', AppTheme.cyanAccent, scale),
                   ],
                 ),
-                const SizedBox(height: 14),
-
-                // Description
+                SizedBox(height: 18 * scale),
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 400),
+                  constraints: const BoxConstraints(maxWidth: 690),
                   child: Text(
                     'Discover amazing destinations, explore top hotels, create your itinerary and manage your travel expenses all in one place.',
                     style: TextStyle(
-                      color: const Color(0xFFB0BDCF),
-                      fontSize: 13.0,
-                      height: 1.5,
+                      color: const Color(0xFFAAB5C5),
+                      fontSize: 27 * scale,
+                      height: 1.35,
                       fontWeight: FontWeight.w400,
-                      letterSpacing: 0.15,
+                      letterSpacing: -.25,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-
-          const Spacer(),
+          const Spacer(flex: 3),
         ],
       ),
     );
   }
+
+  Widget _tag(String value, Color color, double scale) => Text(
+    value,
+    style: TextStyle(
+      color: color,
+      fontSize: 27 * scale,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -.5,
+    ),
+  );
 }

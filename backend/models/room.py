@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 from extensions import db
+from currency import amount_in_inr
 
 class Room(db.Model):
     __tablename__ = 'rooms'
@@ -11,7 +12,7 @@ class Room(db.Model):
     room_type = db.Column(db.String(80), nullable=False)  # Standard, Deluxe, Premium, Executive Suite, Presidential Suite
     description = db.Column(db.Text)
     price_per_night = db.Column(db.Numeric(10, 2), nullable=False)
-    currency = db.Column(db.String(10), default='USD')
+    currency = db.Column(db.String(10), default='INR')
     bed_type = db.Column(db.String(50), default='King Bed')
     room_size = db.Column(db.String(50), default='45 sq.m')
     maximum_occupancy = db.Column(db.Integer, default=2)
@@ -41,8 +42,8 @@ class Room(db.Model):
             'room_name': self.room_name,
             'room_type': self.room_type,
             'description': self.description,
-            'price_per_night': float(self.price_per_night) if self.price_per_night is not None else 0.0,
-            'currency': self.currency,
+            'price_per_night': float(amount_in_inr(self.price_per_night, self.currency)),
+            'currency': 'INR',
             'bed_type': self.bed_type,
             'room_size': self.room_size,
             'maximum_occupancy': self.maximum_occupancy,

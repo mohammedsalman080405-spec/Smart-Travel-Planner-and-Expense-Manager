@@ -6,6 +6,8 @@ import '../../config/theme.dart';
 import '../../models/budget.dart';
 import '../../providers/budget_provider.dart';
 import '../../providers/expense_provider.dart';
+import '../../providers/trip_provider.dart';
+import '../../services/currency_formatter.dart';
 import '../../widgets/error_widget.dart';
 import '../../widgets/expense_chart.dart';
 import '../../widgets/loading_widget.dart';
@@ -54,17 +56,17 @@ class _BudgetScreenState extends State<BudgetScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildNumberField(accomCtrl, 'Accommodation Budget (\$)'),
+                _buildNumberField(accomCtrl, 'Accommodation Budget (₹)'),
                 const SizedBox(height: 10),
-                _buildNumberField(transCtrl, 'Transportation Budget (\$)'),
+                _buildNumberField(transCtrl, 'Transportation Budget (₹)'),
                 const SizedBox(height: 10),
-                _buildNumberField(foodCtrl, 'Food & Dining Budget (\$)'),
+                _buildNumberField(foodCtrl, 'Food & Dining Budget (₹)'),
                 const SizedBox(height: 10),
-                _buildNumberField(actCtrl, 'Activities & Sightseeing (\$)'),
+                _buildNumberField(actCtrl, 'Activities & Sightseeing (₹)'),
                 const SizedBox(height: 10),
-                _buildNumberField(shopCtrl, 'Shopping Budget (\$)'),
+                _buildNumberField(shopCtrl, 'Shopping Budget (₹)'),
                 const SizedBox(height: 10),
-                _buildNumberField(otherCtrl, 'Other Expenses (\$)'),
+                _buildNumberField(otherCtrl, 'Other Expenses (₹)'),
               ],
             ),
           ),
@@ -142,7 +144,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     controller: amtCtrl,
                     keyboardType: TextInputType.number,
                     style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(labelText: 'Amount (\$)'),
+                    decoration: const InputDecoration(labelText: 'Amount (₹)'),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -168,6 +170,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     );
                     // Refresh budget financial summary
                     context.read<BudgetProvider>().fetchBudget(widget.tripId);
+                    context.read<TripProvider>().fetchTrips();
                     if (mounted) Navigator.pop(ctx);
                   }
                 },
@@ -240,21 +243,21 @@ class _BudgetScreenState extends State<BudgetScreen> {
                         children: [
                           _buildKpiCard(
                             title: 'TOTAL PLANNED BUDGET',
-                            value: '\$${summary.totalBudget.toStringAsFixed(2)}',
+                            value: CurrencyFormatter.format(summary.totalBudget),
                             color: AppTheme.accentCyan,
                             icon: Icons.account_balance,
                           ),
                           const SizedBox(width: 14),
                           _buildKpiCard(
                             title: 'ACTUAL EXPENSES',
-                            value: '\$${summary.totalSpent.toStringAsFixed(2)}',
+                            value: CurrencyFormatter.format(summary.totalSpent),
                             color: AppTheme.accentGold,
                             icon: Icons.shopping_cart,
                           ),
                           const SizedBox(width: 14),
                           _buildKpiCard(
                             title: 'REMAINING BALANCE',
-                            value: '\$${summary.remainingBalance.toStringAsFixed(2)}',
+                            value: CurrencyFormatter.format(summary.remainingBalance),
                             color: summary.remainingBalance >= 0 ? AppTheme.accentEmerald : AppTheme.accentRose,
                             icon: Icons.savings,
                           ),
@@ -308,7 +311,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                             children: [
                                               Text(cat, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
                                               Text(
-                                                '\$${spentAmt.toStringAsFixed(0)} / \$${budgetAmt.toStringAsFixed(0)}',
+                                                '${CurrencyFormatter.format(spentAmt)} / ${CurrencyFormatter.format(budgetAmt)}',
                                                 style: const TextStyle(color: Colors.white70, fontSize: 13),
                                               ),
                                             ],
@@ -430,7 +433,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      '\$${exp.amount.toStringAsFixed(2)}',
+                                      CurrencyFormatter.format(exp.amount),
                                       style: const TextStyle(color: AppTheme.accentGold, fontWeight: FontWeight.bold, fontSize: 16),
                                     ),
                                     IconButton(

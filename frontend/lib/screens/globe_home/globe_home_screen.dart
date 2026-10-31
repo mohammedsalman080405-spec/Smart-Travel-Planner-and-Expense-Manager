@@ -1,8 +1,10 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:provider/provider.dart';
+
 import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/globe_provider.dart';
@@ -25,15 +27,20 @@ class GlobeHomeScreen extends StatefulWidget {
 }
 
 class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
-  DiscoveryViewMode _viewMode = DiscoveryViewMode.map;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  DiscoveryViewMode _viewMode = DiscoveryViewMode.globe;
+  int _searchResetKey = 0;
+  bool _searchWasCleared = false;
 
   @override
   void initState() {
     super.initState();
-    // Default to search Hyderabad and load 9 verified hotels immediately
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _runSearch(widget.initialSearch?.trim().isNotEmpty == true ? widget.initialSearch!.trim() : 'Hyderabad');
-    });
+    final initialSearch = widget.initialSearch?.trim();
+    if (initialSearch != null && initialSearch.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _runSearch(initialSearch),
+      );
+    }
   }
 
   Future<void> _runSearch(String query) async {
@@ -50,6 +57,8 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
           longitude: lng,
           destination: name,
         );
+        if (!mounted) return;
+        setState(() => _viewMode = DiscoveryViewMode.globe);
         if (widget.initialHotelId != null && mounted) {
           final hp = context.read<HotelProvider>();
           for (var h in hp.hotels) {
@@ -63,6 +72,17 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
     } catch (_) {}
   }
 
+  void _returnToGlobalGlobe(HotelProvider hotelProvider) {
+    hotelProvider.closeAllTabs();
+    hotelProvider.clearSearch();
+    context.read<GlobeProvider>().resetView();
+    setState(() {
+      _viewMode = DiscoveryViewMode.globe;
+      _searchResetKey++;
+      _searchWasCleared = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final hotelProvider = context.watch<HotelProvider>();
@@ -70,9 +90,60 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
     final selectedHotel = hotelProvider.selectedHotel;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isDesktop = screenWidth >= 780;
+    final sidebarWidth = screenWidth >= 1200 ? 320.0 : 252.0;
+    final globeProvider = context.watch<GlobeProvider>();
+    final Widget discoveryView = switch (_viewMode) {
+      DiscoveryViewMode.map => Padding(
+        key: const ValueKey('city-map'),
+        padding: EdgeInsets.only(left: isDesktop ? sidebarWidth : 0),
+        child: HyderabadDiscoveryMap(
+          isBlurred: hotelProvider.hasOpenTabs,
+          destination: hotelProvider.currentDestination,
+          latitude: globeProvider.targetLatitude,
+          longitude: globeProvider.targetLongitude,
+          hotels: hotelProvider.hotels,
+          onHotelSelected: hotelProvider.selectHotel,
+          onReturnToGlobe: _returnToCityGlobe,
+        ),
+      ),
+      DiscoveryViewMode.globe => InteractiveGlobe(
+        key: const ValueKey('city-globe'),
+        hotels: hotelProvider.hotels,
+        selectedHotel: selectedHotel,
+        isBlurred: hotelProvider.hasOpenTabs,
+        onHotelSelected: hotelProvider.selectHotel,
+        onOpenCityMap: _openCityMap,
+        onReturnToGlobal: () => _returnToGlobalGlobe(hotelProvider),
+      ),
+      DiscoveryViewMode.list => Padding(
+        key: const ValueKey('hotel-list'),
+        padding: EdgeInsets.only(
+          top: 80,
+          bottom: 0,
+          left: isDesktop ? 195 : 16,
+          right: 16,
+        ),
+        child: _buildHotelCardsListView(context, hotelProvider),
+      ),
+    };
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: Colors.black, // Pure Black Background
+      drawer: !isDesktop
+          ? Drawer(
+              width: (screenWidth * 0.84).clamp(280.0, 340.0),
+              backgroundColor: const Color(0xFF050912),
+              child: SafeArea(
+                child: _buildLeftSidebar(
+                  context,
+                  authProvider,
+                  hotelProvider,
+                  (screenWidth * 0.84).clamp(280.0, 340.0),
+                ),
+              ),
+            )
+          : null,
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -80,39 +151,21 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
           // LAYER 1: BASE HOMEPAGE (Interactive Satellite Map / Globe, Sidebar & Controls)
           // ==========================================
 
-          // 1a. Interactive Map / Globe View (Fullscreen behind sidebar)
-          if (_viewMode == DiscoveryViewMode.map)
-            Positioned(
-              top: 0,
-              bottom: 0,
-              left: isDesktop ? 175 : 0,
-              right: 0,
-              child: HyderabadDiscoveryMap(
-                isBlurred: hotelProvider.hasOpenTabs,
-                onHotelSelected: (hotel) {
-                  hotelProvider.selectHotel(hotel);
-                },
+          // Cross-fade the Earth and city map to avoid a blank or flashing frame.
+          Positioned.fill(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 850),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              layoutBuilder: (currentChild, previousChildren) => Stack(
+                fit: StackFit.expand,
+                children: [...previousChildren, ?currentChild],
               ),
-            )
-          else if (_viewMode == DiscoveryViewMode.globe)
-            Positioned.fill(
-              child: InteractiveGlobe(
-                hotels: hotelProvider.hotels,
-                selectedHotel: selectedHotel,
-                isBlurred: hotelProvider.hasOpenTabs,
-                onHotelSelected: (hotel) {
-                  hotelProvider.selectHotel(hotel);
-                },
-              ),
-            )
-          else
-            Positioned(
-              top: 80,
-              bottom: 0,
-              left: isDesktop ? 195 : 16,
-              right: 16,
-              child: _buildHotelCardsListView(context, hotelProvider),
+              transitionBuilder: (child, animation) =>
+                  FadeTransition(opacity: animation, child: child),
+              child: discoveryView,
             ),
+          ),
 
           // 1b. Left Vertical Sidebar (Desktop / Tablet)
           if (isDesktop)
@@ -120,9 +173,9 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
               top: 0,
               bottom: 0,
               left: 0,
-              width: 175,
+              width: sidebarWidth,
               child: PointerInterceptor(
-                child: _buildLeftSidebar(context, authProvider, hotelProvider),
+                child: _buildLeftSidebar(context, authProvider, hotelProvider, sidebarWidth),
               ),
             ),
 
@@ -133,41 +186,40 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
               left: 16,
               right: 16,
               child: PointerInterceptor(
-                child: _buildMobileTopBar(context, hotelProvider),
+                child: _buildMobileTopBar(context),
               ),
             ),
 
           // 1d. Destination Search Bar (Centered at top between sidebar and toggle)
           Positioned(
             top: isDesktop ? 16 : 76,
-            left: isDesktop ? 175 : 0,
+            left: isDesktop ? sidebarWidth : 0,
             right: isDesktop ? 175 : 0,
             child: Center(
               child: PointerInterceptor(
                 child: DestinationSearchBar(
-                  initialValue: 'Hyderabad',
-                  onDestinationSelected: (query, lat, lng) {
-                    // Search updates hotels and coordinates
-                  },
+                  key: ValueKey(_searchResetKey),
+                  initialValue: _searchWasCleared ? null : widget.initialSearch,
+                  onDestinationSelected: _showCityOnGlobe,
+                  onCleared: () => _returnToGlobalGlobe(hotelProvider),
                 ),
               ),
             ),
           ),
 
           // 1e. Top-Right Map / List Toggle
-          if (isDesktop)
+          if (isDesktop && _viewMode != DiscoveryViewMode.globe)
             Positioned(
               top: 16,
               right: 20,
-              child: PointerInterceptor(
-                child: _buildTopRightToggle(),
-              ),
+              child: PointerInterceptor(child: _buildTopRightToggle()),
             ),
 
           // 1f. Hotel Status Indicator Pill (Shown in globe mode)
-          if (_viewMode == DiscoveryViewMode.globe && hotelProvider.hotels.isNotEmpty)
+          if (_viewMode == DiscoveryViewMode.globe &&
+              hotelProvider.hotels.isNotEmpty)
             Positioned(
-              top: isDesktop ? 88 : 140,
+              top: isDesktop ? 112 : 160,
               left: isDesktop ? 195 : 20,
               child: PointerInterceptor(
                 child: _buildHotelStatusIndicator(context, hotelProvider),
@@ -180,13 +232,19 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
               bottom: 36,
               right: 36,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF091224).withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(color: AppTheme.accentCyan, width: 1.2),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 16),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      blurRadius: 16,
+                    ),
                   ],
                 ),
                 child: const Row(
@@ -195,12 +253,19 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                     SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2.2, color: AppTheme.accentCyan),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: AppTheme.accentCyan,
+                      ),
                     ),
                     SizedBox(width: 12),
                     Text(
                       'Discovering verified hotels...',
-                      style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -226,7 +291,10 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                       opacity: value,
                       child: ClipRect(
                         child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10.0 * value, sigmaY: 10.0 * value),
+                          filter: ImageFilter.blur(
+                            sigmaX: 10.0 * value,
+                            sigmaY: 10.0 * value,
+                          ),
                           child: Container(
                             color: Colors.black.withValues(alpha: 0.55 * value),
                           ),
@@ -245,15 +313,39 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
             Positioned(
               top: 0,
               bottom: 0,
-              left: isDesktop ? 175 : 0,
+              left: isDesktop ? sidebarWidth : 0,
               right: 0,
-              child: PointerInterceptor(
-                child: const HotelWorkspaceTab(),
-              ),
+              child: PointerInterceptor(child: const HotelWorkspaceTab()),
             ),
         ],
       ),
     );
+  }
+
+  void _openCityMap() {
+    if (!mounted || context.read<HotelProvider>().currentDestination.isEmpty) {
+      return;
+    }
+    setState(() => _viewMode = DiscoveryViewMode.map);
+  }
+
+  void _showCityOnGlobe(String query, double latitude, double longitude) {
+    if (!mounted) return;
+    debugPrint(
+      '[Explore] Showing $query on the 3D globe at $latitude, $longitude',
+    );
+    setState(() => _viewMode = DiscoveryViewMode.globe);
+  }
+
+  void _returnToCityGlobe(double latitude, double longitude) {
+    if (!mounted) return;
+    context.read<GlobeProvider>().setCoordinates(
+      latitude,
+      longitude,
+      animate: false,
+      cameraDistance: 17.0,
+    );
+    setState(() => _viewMode = DiscoveryViewMode.globe);
   }
 
   // Top-Right Toggle: Unified pill holding [ Map ] and [ List ] matching visual reference
@@ -382,7 +474,10 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
   }
 
   // Full-page Hotel Cards List View when 'List' mode is toggled
-  Widget _buildHotelCardsListView(BuildContext context, HotelProvider hotelProvider) {
+  Widget _buildHotelCardsListView(
+    BuildContext context,
+    HotelProvider hotelProvider,
+  ) {
     if (hotelProvider.hotels.isEmpty) {
       return const Center(
         child: Text(
@@ -394,7 +489,9 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = constraints.maxWidth > 1100 ? 3 : (constraints.maxWidth > 700 ? 2 : 1);
+        final crossAxisCount = constraints.maxWidth > 1100
+            ? 3
+            : (constraints.maxWidth > 700 ? 2 : 1);
 
         return GridView.builder(
           padding: const EdgeInsets.only(top: 10, bottom: 40),
@@ -414,7 +511,10 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF070E1A).withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFF1E2E4A), width: 1.2),
+                  border: Border.all(
+                    color: const Color(0xFF1E2E4A),
+                    width: 1.2,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.6),
@@ -432,13 +532,19 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                         fit: StackFit.expand,
                         children: [
                           ClipRRect(
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(13),
+                            ),
                             child: Image.network(
                               hotel.exteriorImageUrl ?? '',
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) => Container(
                                 color: const Color(0xFF0D172E),
-                                child: const Icon(Icons.hotel, color: AppTheme.accentCyan, size: 36),
+                                child: const Icon(
+                                  Icons.hotel,
+                                  color: AppTheme.accentCyan,
+                                  size: 36,
+                                ),
                               ),
                             ),
                           ),
@@ -446,22 +552,47 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                             top: 10,
                             right: 10,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.black.withValues(alpha: 0.75),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.5)),
+                                border: Border.all(
+                                  color: AppTheme.accentCyan.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.star, color: Color(0xFFFFB800), size: 13),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    hotel.starRating.toStringAsFixed(1),
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
-                                  ),
-                                ],
+                                children: hotel.starRating > 0
+                                    ? [
+                                        const Icon(
+                                          Icons.star,
+                                          color: Color(0xFFFFB800),
+                                          size: 13,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          hotel.starRating.toStringAsFixed(1),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ]
+                                    : [
+                                        const Text(
+                                          'Rating unavailable',
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ],
                               ),
                             ),
                           ),
@@ -498,11 +629,19 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.accentCyan.withValues(alpha: 0.15),
+                                    color: AppTheme.accentCyan.withValues(
+                                      alpha: 0.15,
+                                    ),
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: AppTheme.accentCyan, width: 1),
+                                    border: Border.all(
+                                      color: AppTheme.accentCyan,
+                                      width: 1,
+                                    ),
                                   ),
                                   child: const Text(
                                     'View Details',
@@ -530,12 +669,27 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
   }
 
   // Left Vertical Sidebar matching the exact visual reference
-  Widget _buildLeftSidebar(BuildContext context, AuthProvider authProvider, HotelProvider hotelProvider) {
+  Widget _buildLeftSidebar(
+    BuildContext context,
+    AuthProvider authProvider,
+    HotelProvider hotelProvider,
+    double sidebarWidth,
+  ) {
+    final currentPath = GoRouterState.of(context).uri.path;
+    final activeIndex = currentPath == '/trips'
+        ? 1
+        : currentPath == '/bookings'
+        ? 2
+        : currentPath.startsWith('/budget') || currentPath == '/expenses'
+        ? 3
+        : hotelProvider.hasOpenTabs
+        ? -1
+        : 0;
     return Container(
-      width: 175,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
+      width: sidebarWidth,
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
       decoration: BoxDecoration(
-        color: const Color(0xFF040812).withValues(alpha: 0.94),
+        color: const Color(0xFF050912),
         border: Border(
           right: BorderSide(
             color: const Color(0xFF1E2E4A).withValues(alpha: 0.45),
@@ -548,27 +702,22 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
         children: [
           // Branding (Clickable: returns to full discovery map view)
           InkWell(
-            onTap: () {
-              hotelProvider.closeAllTabs();
-              setState(() {
-                _viewMode = DiscoveryViewMode.map;
-              });
-            },
+            onTap: () => _returnToGlobalGlobe(hotelProvider),
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
               child: Row(
                 children: [
                   Container(
-                    width: 34,
-                    height: 34,
+                    width: 56,
+                    height: 56,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color(0xFF00D2FF), Color(0xFF0072FF)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(17),
                       boxShadow: [
                         BoxShadow(
                           color: AppTheme.accentCyan.withValues(alpha: 0.45),
@@ -579,10 +728,14 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                     ),
                     child: Transform.rotate(
                       angle: -0.785398, // -45 degrees airplane matching brand
-                      child: const Icon(Icons.flight, color: Colors.white, size: 18),
+                      child: const Icon(
+                        Icons.flight,
+                        color: Colors.white,
+                        size: 30,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 9),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -593,7 +746,7 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,
-                            fontSize: 13.5,
+                            fontSize: 20,
                             letterSpacing: 0.8,
                             height: 1.1,
                           ),
@@ -603,7 +756,7 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
                           '3D Luxury Travel Planner',
                           style: TextStyle(
                             color: AppTheme.accentCyan.withValues(alpha: 0.95),
-                            fontSize: 9.0,
+                          fontSize: 13,
                             fontWeight: FontWeight.w500,
                             letterSpacing: 0.2,
                             height: 1.15,
@@ -617,58 +770,53 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
             ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 38),
 
           // 0. Explore (Active when on discovery map)
           _SidebarNavButton(
             icon: Icons.location_on_outlined,
             label: 'Explore',
-            isActive: !hotelProvider.hasOpenTabs && _viewMode == DiscoveryViewMode.map,
-            onTap: () {
-              hotelProvider.closeAllTabs();
-              setState(() {
-                _viewMode = DiscoveryViewMode.map;
-              });
-            },
+            isActive: activeIndex == 0,
+            onTap: () => _returnToGlobalGlobe(hotelProvider),
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 13),
 
           // 1. My Trips
           _SidebarNavButton(
             icon: Icons.map_outlined,
             label: 'My Trips',
-            isActive: false,
+            isActive: activeIndex == 1,
             onTap: () => context.push('/trips'),
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 13),
 
           // 2. Bookings
           _SidebarNavButton(
             icon: Icons.calendar_today_outlined,
             label: 'Bookings',
-            isActive: false,
+            isActive: activeIndex == 2,
             onTap: () => context.push('/bookings'),
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 13),
 
           // 3. Expenses
           _SidebarNavButton(
             icon: Icons.account_balance_wallet_outlined,
             label: 'Expenses',
-            isActive: false,
+            isActive: activeIndex == 3,
             onTap: () => context.push('/trips'),
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 13),
 
           // 4. Logout / Sign In (Label matches reference 'Logout')
           _SidebarNavButton(
             icon: Icons.logout_rounded,
             label: 'Logout',
-            isActive: false,
+            isActive: activeIndex == 4,
             onTap: () async {
               if (authProvider.isAuthenticated) {
                 await authProvider.logout();
@@ -684,13 +832,15 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
   }
 
   // Mobile Top Bar fallback
-  Widget _buildMobileTopBar(BuildContext context, HotelProvider hotelProvider) {
+  Widget _buildMobileTopBar(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF091224).withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF1E2E4A).withValues(alpha: 0.7)),
+        border: Border.all(
+          color: const Color(0xFF1E2E4A).withValues(alpha: 0.7),
+        ),
       ),
       child: Row(
         children: [
@@ -698,7 +848,9 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
             width: 30,
             height: 30,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF00D2FF), Color(0xFF0072FF)]),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF00D2FF), Color(0xFF0072FF)],
+              ),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Transform.rotate(
@@ -709,20 +861,17 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
           const SizedBox(width: 8),
           const Text(
             'SMART TRAVEL',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
           ),
           const Spacer(),
           IconButton(
-            icon: const Icon(Icons.map_outlined, color: AppTheme.accentCyan, size: 20),
-            onPressed: () => context.push('/trips'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.bookmark_border, color: AppTheme.accentCyan, size: 20),
-            onPressed: () => context.push('/bookings'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout_rounded, color: AppTheme.accentCyan, size: 20),
-            onPressed: () => context.go('/login'),
+            tooltip: 'Open navigation menu',
+            icon: const Icon(Icons.menu_rounded, color: AppTheme.accentCyan, size: 25),
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
           ),
         ],
       ),
@@ -730,13 +879,19 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
   }
 
   // Status indicator pill for hotel count (Globe mode)
-  Widget _buildHotelStatusIndicator(BuildContext context, HotelProvider hotelProvider) {
+  Widget _buildHotelStatusIndicator(
+    BuildContext context,
+    HotelProvider hotelProvider,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
         color: const Color(0xFF0F1A32).withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.45), width: 1.2),
+        border: Border.all(
+          color: AppTheme.accentCyan.withValues(alpha: 0.45),
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.35),
@@ -755,13 +910,17 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
               color: AppTheme.accentCyan,
               shape: BoxShape.circle,
               boxShadow: [
-                BoxShadow(color: AppTheme.accentCyan, blurRadius: 6, spreadRadius: 1),
+                BoxShadow(
+                  color: AppTheme.accentCyan,
+                  blurRadius: 6,
+                  spreadRadius: 1,
+                ),
               ],
             ),
           ),
           const SizedBox(width: 8),
           Text(
-            '${hotelProvider.hotels.length} Verified Hotels on Map',
+            '${hotelProvider.hotels.length} hotels · Zoom closer for satellite map',
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w600,
@@ -798,12 +957,12 @@ class _SidebarNavButtonState extends State<_SidebarNavButton> {
   Widget build(BuildContext context) {
     // Inactive button has dark slate card surface matching reference
     final activeBg = const Color(0xFF05172C).withValues(alpha: 0.95);
-    final hoverBg = const Color(0xFF0D1E35).withValues(alpha: 0.85);
-    final idleBg = const Color(0xFF070F1C).withValues(alpha: 0.85);
+    final hoverBg = const Color(0xFF0B1C2D);
+    final idleBg = const Color(0xFF080F1D);
 
     final activeBorder = const Color(0xFF00D9FF);
     final hoverBorder = const Color(0xFF00D9FF).withValues(alpha: 0.4);
-    final idleBorder = const Color(0xFF18283E);
+    final idleBorder = const Color(0xFF192A40);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -811,16 +970,15 @@ class _SidebarNavButtonState extends State<_SidebarNavButton> {
       cursor: SystemMouseCursors.click,
       child: InkWell(
         onTap: widget.onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10.5),
+          height: 74,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: widget.isActive
-                ? activeBg
-                : (_isHovered ? hoverBg : idleBg),
-            borderRadius: BorderRadius.circular(12),
+            color: widget.isActive ? activeBg : (_isHovered ? hoverBg : idleBg),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: widget.isActive
                   ? activeBorder
@@ -836,14 +994,15 @@ class _SidebarNavButtonState extends State<_SidebarNavButton> {
                     ),
                   ]
                 : (_isHovered
-                    ? [
-                        BoxShadow(
-                          color: const Color(0xFF00D9FF).withValues(alpha: 0.12),
-                          blurRadius: 8,
-                          offset: const Offset(0, 1),
-                        ),
-                      ]
-                    : []),
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF00D9FF)
+                                .withValues(alpha: 0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 1),
+                          ),
+                        ]
+                      : []),
           ),
           child: Row(
             children: [
@@ -852,17 +1011,30 @@ class _SidebarNavButtonState extends State<_SidebarNavButton> {
                 color: widget.isActive
                     ? AppTheme.accentCyan
                     : (_isHovered ? AppTheme.accentCyan : Colors.white),
-                size: 18,
+                size: 25,
               ),
-              const SizedBox(width: 12),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  color: widget.isActive ? AppTheme.accentCyan : Colors.white,
-                  fontSize: 13,
-                  fontWeight: widget.isActive ? FontWeight.w700 : FontWeight.w500,
-                  letterSpacing: 0.2,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: widget.isActive ? AppTheme.accentCyan : Colors.white,
+                    fontSize: 20,
+                    fontWeight: widget.isActive
+                        ? FontWeight.w700
+                        : FontWeight.w600,
+                    letterSpacing: 0.2,
+                  ),
                 ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: widget.isActive || _isHovered
+                    ? AppTheme.accentCyan
+                    : Colors.white,
+                size: 25,
               ),
             ],
           ),

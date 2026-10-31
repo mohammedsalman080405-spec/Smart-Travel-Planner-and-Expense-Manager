@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/hotel.dart';
 import '../services/hotel_service.dart';
 
@@ -13,6 +14,7 @@ class HotelProvider extends ChangeNotifier {
   String _currentDestination = '';
   double? _currentLat;
   double? _currentLng;
+  int _searchGeneration = 0;
 
   // Selected dates for estimated trip expense
   DateTime _checkInDate = DateTime.now().add(const Duration(days: 7));
@@ -55,7 +57,9 @@ class HotelProvider extends ChangeNotifier {
   }
 
   void selectHotel(Hotel hotel) {
-    final existingIndex = _openTabs.indexWhere((h) => h.hotelId == hotel.hotelId);
+    final existingIndex = _openTabs.indexWhere(
+      (h) => h.hotelId == hotel.hotelId,
+    );
     if (existingIndex >= 0) {
       _activeTabIndex = existingIndex;
       _selectedHotel = _openTabs[existingIndex];
@@ -119,6 +123,7 @@ class HotelProvider extends ChangeNotifier {
     double? longitude,
     String? destination,
   }) async {
+    final generation = ++_searchGeneration;
     _isLoading = true;
     _hotels = []; // Clear previous markers immediately so old dots vanish
     _errorMessage = null;
@@ -134,16 +139,22 @@ class HotelProvider extends ChangeNotifier {
         destination: destination,
         radiusKm: _searchRadiusKm,
       );
+      if (generation != _searchGeneration) return;
       if (res['hotels'] is List<Hotel>) {
         _hotels = res['hotels'] as List<Hotel>;
       } else if (res['hotels'] is List) {
-        _hotels = (res['hotels'] as List).map((h) => h is Hotel ? h : Hotel.fromJson(h as Map<String, dynamic>)).toList();
+        _hotels = (res['hotels'] as List)
+            .map(
+              (h) => h is Hotel ? h : Hotel.fromJson(h as Map<String, dynamic>),
+            )
+            .toList();
       } else {
         _hotels = [];
       }
       _isLoading = false;
       notifyListeners();
     } catch (e) {
+      if (generation != _searchGeneration) return;
       _isLoading = false;
       _errorMessage = e.toString().replaceAll('Exception: ', '');
       notifyListeners();
@@ -151,6 +162,7 @@ class HotelProvider extends ChangeNotifier {
   }
 
   void clearSearch() {
+    _searchGeneration++;
     _hotels = [];
     _selectedHotel = null;
     _openTabs.clear();
@@ -158,6 +170,8 @@ class HotelProvider extends ChangeNotifier {
     _currentDestination = '';
     _currentLat = null;
     _currentLng = null;
+    _isLoading = false;
+    _errorMessage = null;
     notifyListeners();
   }
 }

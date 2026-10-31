@@ -21,6 +21,7 @@ class TripService {
     required String destination,
     required String startDate,
     required String endDate,
+    required double totalTripBudget,
     int travellerCount = 1,
   }) async {
     final response = await ApiService.post(
@@ -31,6 +32,8 @@ class TripService {
         'start_date': startDate,
         'end_date': endDate,
         'traveller_count': travellerCount,
+        'total_trip_budget': totalTripBudget,
+        'currency': 'INR',
       },
       needsAuth: true,
     );

@@ -9,7 +9,7 @@ class ExpenseService:
         return [e.to_dict() for e in expenses]
 
     @staticmethod
-    def add_expense(user_id: int, trip_id: int, category: str, amount: float, expense_date_str: str, description: str = '', currency: str = 'USD'):
+    def add_expense(user_id: int, trip_id: int, category: str, amount: float, expense_date_str: str, description: str = '', currency: str = 'INR'):
         try:
             exp_date = datetime.strptime(expense_date_str, '%Y-%m-%d').date()
         except ValueError:

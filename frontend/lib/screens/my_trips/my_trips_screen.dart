@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -30,6 +31,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
   void _showCreateTripDialog() {
     final nameCtrl = TextEditingController();
     final destCtrl = TextEditingController();
+    final budgetCtrl = TextEditingController();
     DateTime start = DateTime.now().add(const Duration(days: 14));
     DateTime end = DateTime.now().add(const Duration(days: 20));
     int travellers = 2;
@@ -49,7 +51,8 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
               key: formKey,
               child: SizedBox(
                 width: 460,
-                child: Column(
+                child: SingleChildScrollView(
+                  child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     TextFormField(
@@ -66,6 +69,28 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                       validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                     ),
                     const SizedBox(height: 16),
+                    TextFormField(
+                      controller: budgetCtrl,
+                      style: const TextStyle(color: Colors.white),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        _IndianCurrencyInputFormatter(),
+                      ],
+                      decoration: const InputDecoration(
+                        labelText: 'Total Trip Budget (₹)',
+                        hintText: 'Enter your estimated trip budget',
+                        prefixText: '₹ ',
+                        helperText: 'Maximum amount planned for the entire trip.',
+                      ),
+                      validator: (value) {
+                        final amount = int.tryParse((value ?? '').replaceAll(',', ''));
+                        return amount == null || amount <= 0
+                            ? 'Enter a budget greater than ₹0'
+                            : null;
+                      },
+                    ),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
@@ -131,6 +156,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                       ],
                     ),
                   ],
+                  ),
                 ),
               ),
             ),
@@ -147,6 +173,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                       destination: destCtrl.text.trim(),
                       startDate: fmt.format(start),
                       endDate: fmt.format(end),
+                      totalTripBudget: double.parse(budgetCtrl.text.replaceAll(',', '')),
                       travellerCount: travellers,
                     );
                     if (success && mounted) {
@@ -263,9 +290,10 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                                             child: const Icon(Icons.flight_takeoff, color: AppTheme.accentCyan, size: 22),
                                           ),
                                           const SizedBox(width: 14),
-                                          Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
+                                          Flexible(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
                                               Text(
                                                 trip.tripName,
                                                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
@@ -275,7 +303,8 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                                                 '${trip.destination} • ${trip.startDate} to ${trip.endDate} • ${trip.travellerCount} Travellers',
                                                 style: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
                                               ),
-                                            ],
+                                              ],
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -294,6 +323,27 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                                   ),
 
                                   const SizedBox(height: 18),
+                                  Builder(
+                                    builder: (context) {
+                                      final totalBudget = trip.totalTripBudget > 0
+                                          ? trip.totalTripBudget
+                                          : (trip.budget?.totalBudget ?? 0);
+                                      final spent = trip.expenses.fold<double>(
+                                        0,
+                                        (sum, expense) => sum + expense.amount,
+                                      );
+                                      return Wrap(
+                                        spacing: 24,
+                                        runSpacing: 10,
+                                        children: [
+                                          _tripMoney('Total budget', totalBudget),
+                                          _tripMoney('Amount spent', spent),
+                                          _tripMoney('Remaining', totalBudget - spent),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 16),
                                   const Divider(color: AppTheme.borderNavy, height: 1),
                                   const SizedBox(height: 14),
 
@@ -350,6 +400,39 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                         ),
                       ),
                     ),
+    );
+  }
+
+  Widget _tripMoney(String label, num amount) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: AppTheme.textMuted, fontSize: 12)),
+        const SizedBox(height: 3),
+        Text(
+          NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(amount),
+          style: const TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+}
+
+class _IndianCurrencyInputFormatter extends TextInputFormatter {
+  final NumberFormat _format = NumberFormat.decimalPattern('en_IN');
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(',', '');
+    if (digits.isEmpty) return newValue.copyWith(text: '');
+    if (digits.length > 10) return oldValue;
+    final formatted = _format.format(int.parse(digits));
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

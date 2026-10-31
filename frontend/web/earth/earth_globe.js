@@ -5,10 +5,22 @@
   'use strict';
 
   let scene, camera, renderer, controls;
-  let earthMesh, cloudsMesh, atmosphereMesh;
+  let earthMesh, cloudsMesh, atmosphereMesh, nightLightsMesh, nightLightsMaterial, sunLight;
   let earthGroup;
   let starsMesh;
   const hotelMarkers = [];
+  const flightPaths = [];
+  const hotelRoutes = [];
+  let cityCenterMarker = null;
+  let cityRoutePlane = null;
+  let cityRouteCurve = null;
+  let cityCoordinates = null;
+  let hasCityHotels = false;
+  let hasCitySearch = false;
+  let mapTransitionSent = false;
+  let globalResetSent = false;
+  let focusedLatitude = 20.0;
+  let focusedLongitude = 20.0;
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
 
@@ -97,8 +109,9 @@
     scene.add(earthGroup);
 
     // 5. Lighting (Directional sunlight from top-right + subtle ambient space bounce)
-    const sunLight = new THREE.DirectionalLight(0xffffff, 1.45);
-    sunLight.position.set(22, 10, 14);
+    sunLight = new THREE.DirectionalLight(0xffffff, 1.45);
+    // Keep the initial India-facing hemisphere near twilight so the city-light layer reads clearly.
+    sunLight.position.set(-22, 10, -14);
     scene.add(sunLight);
 
     const ambientLight = new THREE.AmbientLight(0x18243c, 0.4);
@@ -106,6 +119,7 @@
 
     // 6. Deep Space Starfield with white & subtle electric-blue particles
     createStarfield();
+    createGlobalFlightPaths();
 
     // 7. Load Textures & Build Meshes
     loadEarthAssets();
@@ -164,6 +178,78 @@
     scene.add(starsMesh);
   }
 
+  function createPlaneTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#5beaff';
+    ctx.shadowColor = '#00d9ff';
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.moveTo(64, 7);
+    ctx.lineTo(74, 49);
+    ctx.lineTo(119, 70);
+    ctx.lineTo(119, 80);
+    ctx.lineTo(75, 68);
+    ctx.lineTo(75, 105);
+    ctx.lineTo(89, 116);
+    ctx.lineTo(89, 122);
+    ctx.lineTo(64, 114);
+    ctx.lineTo(39, 122);
+    ctx.lineTo(39, 116);
+    ctx.lineTo(53, 105);
+    ctx.lineTo(53, 68);
+    ctx.lineTo(9, 80);
+    ctx.lineTo(9, 70);
+    ctx.lineTo(54, 49);
+    ctx.closePath();
+    ctx.fill();
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  function createGlobalFlightPaths() {
+    const planeTexture = createPlaneTexture();
+    const routes = [
+      [[40.7128, -74.0060], [51.5072, -0.1276]],
+      [[51.5072, -0.1276], [25.2048, 55.2708]],
+      [[25.2048, 55.2708], [1.3521, 103.8198]],
+      [[1.3521, 103.8198], [35.6762, 139.6503]],
+      [[48.8566, 2.3522], [28.6139, 77.2090]]
+    ];
+
+    routes.forEach((route, index) => {
+      const start = latLngToVector3(route[0][0], route[0][1], GLOBE_RADIUS + 0.045);
+      const end = latLngToVector3(route[1][0], route[1][1], GLOBE_RADIUS + 0.045);
+      const control = start.clone().add(end).normalize().multiplyScalar(GLOBE_RADIUS + 0.78);
+      const curve = new THREE.QuadraticBezierCurve3(start, control, end);
+      const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(96));
+      const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({
+        color: 0x00cfff,
+        transparent: true,
+        opacity: 0.34,
+        depthWrite: false
+      }));
+      line.renderOrder = 2;
+      earthGroup.add(line);
+
+      const material = new THREE.SpriteMaterial({
+        map: planeTexture,
+        transparent: true,
+        opacity: 0.98,
+        depthTest: true,
+        depthWrite: false
+      });
+      const plane = new THREE.Sprite(material);
+      plane.scale.set(0.42, 0.42, 1);
+      plane.renderOrder = 3;
+      earthGroup.add(plane);
+      flightPaths.push({ curve, plane, speed: 0.018 + index * 0.001, offset: index / routes.length });
+    });
+  }
+
   function loadEarthAssets() {
     const textureLoader = new THREE.TextureLoader();
 
@@ -201,6 +287,44 @@
 
     earthMesh = new THREE.Mesh(earthGeometry, earthMaterial);
     earthGroup.add(earthMesh);
+
+    // Overlay city lights only on the unlit side of the globe.
+    nightLightsMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        nightMap: { value: nightTexture },
+        sunDirection: { value: sunLight.position.clone().normalize() }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        void main() {
+          vUv = uv;
+          vNormal = normalize(normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D nightMap;
+        uniform vec3 sunDirection;
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        void main() {
+          vec4 lights = texture2D(nightMap, vUv);
+          float nightSide = 1.0 - smoothstep(-0.12, 0.12, dot(normalize(vNormal), normalize(sunDirection)));
+          float brightness = max(max(lights.r, lights.g), lights.b);
+          gl_FragColor = vec4(lights.rgb * vec3(1.0, 0.58, 0.24) * 2.8, brightness * nightSide * 1.2);
+        }
+      `,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      depthWrite: false
+    });
+    nightLightsMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(GLOBE_RADIUS + 0.012, 64, 64),
+      nightLightsMaterial
+    );
+    nightLightsMesh.renderOrder = 1;
+    earthGroup.add(nightLightsMesh);
 
     // 2. Realistic Cloud Layer (slowly rotating)
     const cloudsGeometry = new THREE.SphereGeometry(GLOBE_RADIUS + 0.04, 64, 64);
@@ -270,6 +394,8 @@
     targetRotationY = targets.rotY;
     targetRotationX = targets.rotX;
     targetCameraDistance = zoomDistance;
+    focusedLatitude = lat;
+    focusedLongitude = lng;
 
     if (!animate) {
       earthGroup.rotation.y = targetRotationY;
@@ -361,121 +487,174 @@
     return goldDotTexture;
   }
 
-  // Calculate geographically accurate, distinct placements for all returned hotels
-  // Ensures every hotel has its own separate dot at its true geographic direction from destination centre
-  // with sufficient visual clearance so dots never overlap into a merged blob
+  // Keep every marker at the hotel's actual geographic coordinates. Labels are
+  // callouts tethered to those locations, so nearby hotels remain individually legible.
   function calculateGeographicPlacements(hotels) {
-    if (!hotels || hotels.length === 0) return [];
-    if (hotels.length === 1) {
-      return [{
-        hotel: hotels[0],
-        lat: parseFloat(hotels[0].latitude),
-        lng: parseFloat(hotels[0].longitude)
-      }];
-    }
-
-    let sumLat = 0, sumLng = 0, validCount = 0;
-    hotels.forEach(h => {
-      const lat = parseFloat(h.latitude);
-      const lng = parseFloat(h.longitude);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        sumLat += lat;
-        sumLng += lng;
-        validCount++;
-      }
-    });
-    if (validCount === 0) return [];
-
-    const cLat = sumLat / validCount;
-    const cLng = sumLng / validCount;
-    const cosLat = Math.cos(cLat * Math.PI / 180) || 1.0;
-
-    const pts = [];
-    let maxDist = 0.0001;
-
-    hotels.forEach((h, idx) => {
-      const lat = parseFloat(h.latitude);
-      const lng = parseFloat(h.longitude);
-      if (isNaN(lat) || isNaN(lng)) return;
-
-      const dLat = lat - cLat;
-      const dLng = (lng - cLng) * cosLat;
-      const dist = Math.hypot(dLat, dLng);
-      if (dist > maxDist) maxDist = dist;
-
-      pts.push({
-        hotel: h,
-        origLat: lat,
-        origLng: lng,
-        dLat: dLat,
-        dLng: dLng,
-        x: dLng,
-        y: dLat,
-        idx: idx
-      });
-    });
-
-    // Target visual spread on the globe and minimum pairwise clearance
-    // Preserves each hotel's compass bearing and relative location around the destination
-    const targetSpread = 2.6; // degrees on Earth surface
-    const minSeparation = 0.65; // degrees minimum separation between distinct dots
-
-    if (maxDist < targetSpread * 0.5) {
-      const scale = (targetSpread * 0.5) / maxDist;
-      pts.forEach(p => {
-        p.x *= scale;
-        p.y *= scale;
-      });
-    }
-
-    // Iterative repulsion so no two dots overlap into a single blob
-    for (let iter = 0; iter < 35; iter++) {
-      for (let i = 0; i < pts.length; i++) {
-        for (let j = i + 1; j < pts.length; j++) {
-          let dx = pts[i].x - pts[j].x;
-          let dy = pts[i].y - pts[j].y;
-          let d = Math.hypot(dx, dy);
-          if (d < minSeparation) {
-            const overlap = minSeparation - d;
-            if (d < 1e-5) {
-              const ang = (pts[i].idx * 1.618033) * Math.PI * 2;
-              dx = Math.cos(ang) * 0.02;
-              dy = Math.sin(ang) * 0.02;
-              d = Math.hypot(dx, dy);
-            }
-            const pushX = (dx / d) * (overlap * 0.5);
-            const pushY = (dy / d) * (overlap * 0.5);
-            pts[i].x += pushX;
-            pts[i].y += pushY;
-            pts[j].x -= pushX;
-            pts[j].y -= pushY;
-          }
-        }
-      }
-    }
-
-    return pts.map(p => {
-      const lat = cLat + p.y;
-      const lng = cLng + (p.x / cosLat);
-      return {
-        hotel: p.hotel,
-        lat: lat,
-        lng: lng
-      };
-    });
+    return (hotels || []).map(hotel => ({
+      hotel,
+      lat: Number(hotel.latitude),
+      lng: Number(hotel.longitude)
+    })).filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng) &&
+      Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180 && (p.lat !== 0 || p.lng !== 0));
   }
 
-  // Render individual hotel markers: exactly 1 dot per hotel, white center + cyan glow
+  function roundedRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, radius);
+  }
+
+  function makeHotelCardTexture(hotel) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 192;
+    const ctx = canvas.getContext('2d');
+    let texture;
+    const draw = (photo = null) => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.shadowColor = 'rgba(0,217,255,.8)';
+      ctx.shadowBlur = 18;
+      roundedRect(ctx, 8, 8, 624, 176, 26);
+      ctx.fillStyle = 'rgba(4,12,24,.97)';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#00d9ff';
+      ctx.stroke();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(101, 96, 69, 0, Math.PI * 2);
+      ctx.clip();
+      if (photo) {
+        const ratio = Math.max(138 / photo.width, 138 / photo.height);
+        const w = photo.width * ratio, h = photo.height * ratio;
+        ctx.drawImage(photo, 101 - w / 2, 96 - h / 2, w, h);
+      } else {
+        ctx.fillStyle = '#101827';
+        ctx.fillRect(32, 27, 138, 138);
+        ctx.fillStyle = '#00d9ff';
+        ctx.font = '76px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('⌂', 101, 96);
+      }
+      ctx.restore();
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#00d9ff';
+      ctx.beginPath();
+      ctx.arc(101, 96, 69, 0, Math.PI * 2);
+      ctx.stroke();
+
+      const name = String(hotel.hotel_name || 'Hotel');
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 31px Arial, sans-serif';
+      ctx.fillText(name.length > 27 ? `${name.slice(0, 25)}…` : name, 190, 69, 420);
+      ctx.fillStyle = '#ffc52f';
+      ctx.font = '26px Arial, sans-serif';
+      const rating = Number(hotel.star_rating);
+      const ratingText = Number.isFinite(rating) && rating > 0 ? `★ ${rating.toFixed(1)}` : 'Hotel';
+      ctx.fillText(`${ratingText}  ·  ${Number(hotel.review_count || 0).toLocaleString()} reviews`, 190, 111, 420);
+      const amount = Number(hotel.starting_price);
+      let price = 'Price unavailable';
+      if (Number.isFinite(amount) && amount > 0) {
+        try {
+          price = `${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount)} / night`;
+        } catch (_) { price = `${amount.toFixed(0)} / night`; }
+      }
+      ctx.fillStyle = '#00d9ff';
+      ctx.font = 'bold 29px Arial, sans-serif';
+      ctx.fillText(price, 190, 153, 420);
+      if (texture) texture.needsUpdate = true;
+    };
+    draw();
+    texture = new THREE.CanvasTexture(canvas);
+
+    const photoUrl = hotel.exterior_image_url;
+    if (photoUrl && /^https?:\/\//i.test(photoUrl)) {
+      const image = new Image();
+      image.crossOrigin = 'anonymous';
+      image.onload = () => draw(image);
+      image.onerror = () => draw();
+      image.src = photoUrl;
+    }
+    return texture;
+  }
+
+  function renderHotelRoutes(placements) {
+    hotelRoutes.forEach(route => {
+      earthGroup.remove(route);
+      route.geometry.dispose();
+      route.material.dispose();
+    });
+    hotelRoutes.length = 0;
+    if (cityCenterMarker) {
+      earthGroup.remove(cityCenterMarker);
+      cityCenterMarker.material.dispose();
+      cityCenterMarker = null;
+    }
+    if (cityRoutePlane) {
+      earthGroup.remove(cityRoutePlane);
+      cityRoutePlane.material.dispose();
+      cityRoutePlane = null;
+      cityRouteCurve = null;
+    }
+    if (!cityCoordinates || !placements.length) return;
+
+    const center = latLngToVector3(cityCoordinates.latitude, cityCoordinates.longitude, GLOBE_RADIUS + 0.035);
+    cityCenterMarker = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: getCyanDotTexture(), color: 0xffffff, transparent: true,
+      depthTest: true, depthWrite: false, blending: THREE.AdditiveBlending
+    }));
+    cityCenterMarker.position.copy(center);
+    cityCenterMarker.scale.set(0.34, 0.34, 1);
+    cityCenterMarker.renderOrder = 4;
+    earthGroup.add(cityCenterMarker);
+
+    const planeTexture = createPlaneTexture();
+    placements.forEach((placement, index) => {
+      const start = center.clone();
+      const end = latLngToVector3(placement.lat, placement.lng, GLOBE_RADIUS + 0.04);
+      const midpoint = start.clone().add(end).normalize().multiplyScalar(GLOBE_RADIUS + 0.10);
+      const curve = new THREE.QuadraticBezierCurve3(start, midpoint, end);
+      const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(48));
+      const material = new THREE.LineDashedMaterial({
+        color: 0x00d9ff, dashSize: 0.055, gapSize: 0.045,
+        transparent: true, opacity: 0.92, depthWrite: false
+      });
+      const line = new THREE.Line(geometry, material);
+      line.computeLineDistances();
+      line.renderOrder = 2;
+      earthGroup.add(line);
+      hotelRoutes.push(line);
+      if (index === 0) cityRouteCurve = curve;
+    });
+    if (cityRouteCurve) {
+      cityRoutePlane = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: planeTexture, transparent: true, depthTest: true, depthWrite: false
+      }));
+      cityRoutePlane.scale.set(0.20, 0.20, 1);
+      cityRoutePlane.renderOrder = 4;
+      earthGroup.add(cityRoutePlane);
+    }
+  }
+
+  // Place a real-coordinate pin on the sphere and keep its readable card tethered
+  // to the pin with a leader line. The card remains a child of the geographic marker.
   function renderHotelMarkers(hotelsList) {
-    console.log(`[EarthGlobe] Rendering ${hotelsList ? hotelsList.length : 0} individual hotel dots on globe...`);
+    console.log(`[EarthGlobe] Rendering ${hotelsList ? hotelsList.length : 0} hotel cards on globe...`);
     clearHotelMarkers();
 
     if (!hotelsList || hotelsList.length === 0) {
+      hasCityHotels = false;
       console.log('[EarthGlobe] Zero hotels provided. Globe markers cleared.');
       return;
     }
 
     const placements = calculateGeographicPlacements(hotelsList);
+    hasCityHotels = placements.length > 0;
+    renderHotelRoutes(placements);
 
     placements.forEach((placement, idx) => {
       const hotel = placement.hotel;
@@ -500,12 +679,41 @@
         depthWrite: false
       });
       const dotSprite = new THREE.Sprite(spriteMaterial);
-      const baseScale = 0.075;
+      const baseScale = 0.14;
       dotSprite.scale.set(baseScale, baseScale, 1.0);
       markerGroup.add(dotSprite);
 
-      // 2. Invisible Hit Proxy for Smooth, Reliable Mouse Clicking
-      const hitGeometry = new THREE.SphereGeometry(0.065, 8, 8);
+      // Spread labels around each city's pin cluster while leaving the pin on its
+      // exact coordinate. Five-card rings keep dense hotel areas readable.
+      const ringIndex = Math.floor(idx / 5);
+      const slot = idx % 5;
+      const angle = (slot / 5) * Math.PI * 2 + ringIndex * 0.34;
+      const ringRadius = 1.25 + ringIndex * 1.0;
+      const cardOffset = new THREE.Vector3(Math.cos(angle) * ringRadius, 0.20, Math.sin(angle) * ringRadius);
+      const leader = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, 0.02, 0),
+          new THREE.Vector3(cardOffset.x * 0.82, cardOffset.y, cardOffset.z * 0.82)
+        ]),
+        new THREE.LineBasicMaterial({ color: 0x00d9ff, transparent: true, opacity: 0.8, depthTest: true })
+      );
+      leader.renderOrder = 3;
+      markerGroup.add(leader);
+
+      const cardTexture = makeHotelCardTexture(hotel);
+      const cardSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: cardTexture,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false
+      }));
+      cardSprite.position.copy(cardOffset);
+      cardSprite.scale.set(1.72, 0.516, 1);
+      cardSprite.renderOrder = 5;
+      markerGroup.add(cardSprite);
+
+      // Hit proxies make both the true pin and the card interactive.
+      const hitGeometry = new THREE.SphereGeometry(0.11, 10, 10);
       const hitMaterial = new THREE.MeshBasicMaterial({ visible: false });
       const hitMesh = new THREE.Mesh(hitGeometry, hitMaterial);
       markerGroup.add(hitMesh);
@@ -517,23 +725,53 @@
         isHotelMarker: true,
         dotSprite: dotSprite,
         hitMesh: hitMesh,
+        cardSprite: cardSprite,
+        leader: leader,
+        cardTexture: cardTexture,
         pulsePhase: (idx * 0.78) % (Math.PI * 2),
         baseScale: baseScale
       };
       hitMesh.userData = markerGroup.userData;
+      cardSprite.userData = markerGroup.userData;
 
       earthGroup.add(markerGroup);
       hotelMarkers.push(markerGroup);
     });
 
-    console.log(`[EarthGlobe] Successfully rendered ${hotelMarkers.length} distinct individual hotel markers.`);
+    console.log(`[EarthGlobe] Successfully rendered ${hotelMarkers.length} distinct geographic hotel markers.`);
   }
 
   function clearHotelMarkers() {
     hotelMarkers.forEach((marker) => {
       earthGroup.remove(marker);
+      marker.userData.cardTexture?.dispose();
+      marker.userData.hitMesh?.geometry.dispose();
+      marker.userData.hitMesh?.material.dispose();
+      marker.userData.leader?.geometry.dispose();
+      marker.userData.leader?.material.dispose();
+      marker.userData.dotSprite?.material.dispose();
+      marker.userData.cardSprite?.material.dispose();
     });
     hotelMarkers.length = 0;
+    hotelRoutes.forEach(route => {
+      earthGroup.remove(route);
+      route.geometry.dispose();
+      route.material.dispose();
+    });
+    hotelRoutes.length = 0;
+    if (cityCenterMarker) {
+      earthGroup.remove(cityCenterMarker);
+      cityCenterMarker.material.dispose();
+      cityCenterMarker = null;
+    }
+    if (cityRoutePlane) {
+      earthGroup.remove(cityRoutePlane);
+      cityRoutePlane.material.map?.dispose();
+      cityRoutePlane.material.dispose();
+      cityRoutePlane = null;
+    }
+    cityRouteCurve = null;
+    hasCityHotels = false;
     selectedMarkerId = null;
     hoveredMarker = null;
     hideTooltip();
@@ -575,6 +813,7 @@
     hotelMarkers.forEach((m) => {
       if (m.visible && m.userData.hitMesh) {
         clickableObjects.push(m.userData.hitMesh);
+        clickableObjects.push(m.userData.cardSprite);
       }
     });
 
@@ -631,6 +870,7 @@
     hotelMarkers.forEach((m) => {
       if (m.visible && m.userData.hitMesh) {
         clickableObjects.push(m.userData.hitMesh);
+        clickableObjects.push(m.userData.cardSprite);
       }
     });
 
@@ -657,7 +897,20 @@
   function showTooltip(x, y, hotel) {
     if (!tooltip) return;
     tooltipTitle.textContent = hotel.hotel_name || 'Luxury Hotel';
-    tooltipSub.textContent = `$${parseFloat(hotel.starting_price || 240).toFixed(0)}/night • ★ ${parseFloat(hotel.star_rating || 4.5).toFixed(1)}`;
+    const amount = Number(hotel.starting_price);
+    let price = 'Price unavailable';
+    if (Number.isFinite(amount) && amount > 0) {
+      try {
+        price = new Intl.NumberFormat(undefined, {
+          style: 'currency',
+          currency: 'INR',
+          maximumFractionDigits: 0
+        }).format(amount);
+      } catch (_) { price = amount.toFixed(0); }
+      price += ' / night';
+    }
+    const rating = Number(hotel.star_rating);
+    tooltipSub.textContent = `${price} • ${Number.isFinite(rating) && rating > 0 ? `★ ${rating.toFixed(1)}` : 'Rating unavailable'}`;
     tooltip.style.left = `${x}px`;
     tooltip.style.top = `${y - 12}px`;
     tooltip.style.display = 'block';
@@ -695,6 +948,17 @@
 
       case 'SET_HOTELS':
         if (Array.isArray(data.hotels)) {
+          if (Number.isFinite(Number(data.destination_latitude)) && Number.isFinite(Number(data.destination_longitude))) {
+            cityCoordinates = {
+              latitude: Number(data.destination_latitude),
+              longitude: Number(data.destination_longitude)
+            };
+          } else {
+            cityCoordinates = { latitude: focusedLatitude, longitude: focusedLongitude };
+          }
+          mapTransitionSent = false;
+          globalResetSent = false;
+          hasCitySearch = true;
           renderHotelMarkers(data.hotels);
         }
         break;
@@ -706,6 +970,10 @@
         break;
 
       case 'CLEAR_HOTELS':
+        hasCitySearch = false;
+        cityCoordinates = null;
+        mapTransitionSent = false;
+        globalResetSent = false;
         clearHotelMarkers();
         break;
 
@@ -714,9 +982,23 @@
         break;
 
       case 'RESET_VIEW':
-        setCoordinatesFocus(17.385044, 78.486671, true, 15.8);
+        cityCoordinates = null;
+        hasCitySearch = false;
+        mapTransitionSent = false;
+        globalResetSent = false;
+        clearHotelMarkers();
+        setCoordinatesFocus(20.0, 20.0, true, 15.8);
         isAutoRotating = true;
         break;
+
+      case 'ZOOM_STEP': {
+        const step = data.direction === 'out' ? 2.2 : -2.2;
+        targetCameraDistance = THREE.MathUtils.clamp(camera.position.length() + step, 6.8, 24);
+        isAnimatingTarget = true;
+        isAutoRotating = false;
+        lastUserInteraction = Date.now();
+        break;
+      }
 
       case 'SET_BLUR':
         if (data.blurred) {
@@ -751,6 +1033,23 @@
       cloudsMesh.rotation.y += 0.0007;
     }
 
+    const flightTime = Date.now() * 0.001;
+    if (nightLightsMaterial && sunLight && earthGroup) {
+      nightLightsMaterial.uniforms.sunDirection.value
+        .copy(sunLight.position)
+        .normalize()
+        .applyQuaternion(earthGroup.quaternion.clone().invert());
+    }
+    flightPaths.forEach((path) => {
+      const progress = (flightTime * path.speed + path.offset) % 1;
+      const point = path.curve.getPointAt(progress);
+      const next = path.curve.getPointAt((progress + 0.003) % 1);
+      const pointScreen = point.clone().project(camera);
+      const nextScreen = next.clone().project(camera);
+      path.plane.position.copy(point);
+      path.plane.material.rotation = Math.atan2(nextScreen.y - pointScreen.y, nextScreen.x - pointScreen.x);
+    });
+
     // 2. Smooth Focus Transition
     if (isAnimatingTarget && earthGroup) {
       // Normalize angle difference
@@ -770,9 +1069,10 @@
       }
 
       // Smooth camera zoom
-      const distDiff = targetCameraDistance - camera.position.z;
+      const currentDistance = camera.position.length();
+      const distDiff = targetCameraDistance - currentDistance;
       if (Math.abs(distDiff) > 0.05) {
-        camera.position.z += distDiff * 0.08;
+        camera.position.setLength(currentDistance + distDiff * 0.08);
       }
 
       controls.target.set(0, 0, 0);
@@ -814,6 +1114,18 @@
     });
 
     controls.update();
+    if (cityRoutePlane && cityRouteCurve) {
+      cityRoutePlane.position.copy(cityRouteCurve.getPointAt((flightTime * 0.12) % 1));
+    }
+    const cameraDistance = camera.position.distanceTo(controls.target);
+    if (hasCitySearch && cameraDistance <= 7.45 && !mapTransitionSent) {
+      mapTransitionSent = true;
+      notifyFlutter({ type: 'OPEN_CITY_MAP' });
+    }
+    if (hasCitySearch && cameraDistance >= 20.8 && !globalResetSent) {
+      globalResetSent = true;
+      notifyFlutter({ type: 'RETURN_TO_GLOBAL' });
+    }
     renderer.render(scene, camera);
   }
 

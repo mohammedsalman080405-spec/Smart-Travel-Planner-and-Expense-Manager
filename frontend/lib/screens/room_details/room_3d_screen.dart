@@ -6,6 +6,7 @@ import '../../services/hotel_service.dart';
 import '../../widgets/error_widget.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/model_viewer_widget.dart';
+import '../../services/currency_formatter.dart';
 
 class Room3dScreen extends StatefulWidget {
   final int roomId;
@@ -78,6 +79,7 @@ class _Room3dScreenState extends State<Room3dScreen> {
                       title: room.roomName,
                       fallbackImageUrl: room.imageUrl,
                       height: 520,
+                      useCompleteRoomModel: true,
                     ),
 
                     const SizedBox(height: 28),
@@ -150,7 +152,7 @@ class _Room3dScreenState extends State<Room3dScreen> {
                                 text: TextSpan(
                                   children: [
                                     TextSpan(
-                                      text: '\$${room.pricePerNight.toStringAsFixed(0)}',
+                                      text: CurrencyFormatter.format(room.pricePerNight),
                                       style: const TextStyle(
                                         color: AppTheme.accentCyan,
                                         fontSize: 28,

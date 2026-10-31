@@ -1,5 +1,6 @@
 import json
 from extensions import db
+from currency import amount_in_inr
 
 class HotelSpace(db.Model):
     __tablename__ = 'hotel_spaces'
@@ -12,7 +13,7 @@ class HotelSpace(db.Model):
     capacity = db.Column(db.Integer, default=50)
     size = db.Column(db.String(50), default='120 sq.m')
     price = db.Column(db.Numeric(10, 2), default=0.00)
-    currency = db.Column(db.String(10), default='USD')
+    currency = db.Column(db.String(10), default='INR')
     opening_hours = db.Column(db.String(100), default='06:00 - 23:00')
     amenities = db.Column(db.Text)
     image_url = db.Column(db.Text)
@@ -37,8 +38,8 @@ class HotelSpace(db.Model):
             'description': self.description,
             'capacity': self.capacity,
             'size': self.size,
-            'price': float(self.price) if self.price is not None else 0.0,
-            'currency': self.currency,
+            'price': float(amount_in_inr(self.price, self.currency)),
+            'currency': 'INR',
             'opening_hours': self.opening_hours,
             'amenities': amenities_list,
             'image_url': self.image_url,

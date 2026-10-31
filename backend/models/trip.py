@@ -64,6 +64,8 @@ class Trip(db.Model):
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
     traveller_count = db.Column(db.Integer, default=1)
+    total_trip_budget = db.Column(db.Numeric(12, 2), nullable=False, default=0.00)
+    currency = db.Column(db.String(10), nullable=False, default='INR')
     status = db.Column(db.String(30), default='planned')  # planned, ongoing, completed, cancelled
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -85,6 +87,8 @@ class Trip(db.Model):
             'start_date': self.start_date.isoformat() if self.start_date else None,
             'end_date': self.end_date.isoformat() if self.end_date else None,
             'traveller_count': self.traveller_count,
+            'total_trip_budget': float(self.total_trip_budget or 0),
+            'currency': self.currency or 'INR',
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None

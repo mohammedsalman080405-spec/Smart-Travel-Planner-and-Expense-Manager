@@ -136,6 +136,8 @@ CREATE TABLE IF NOT EXISTS trips (
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     traveller_count INT DEFAULT 1,
+    total_trip_budget DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+    currency VARCHAR(10) NOT NULL DEFAULT 'INR',
     status VARCHAR(30) DEFAULT 'planned', -- planned, ongoing, completed, cancelled
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

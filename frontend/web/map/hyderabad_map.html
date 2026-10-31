@@ -1,379 +1,220 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Smart Travel - Hyderabad Hotel Discovery Dashboard</title>
-  
-  <!-- Leaflet CSS & JS for Smooth Interactive Pan & Zoom -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Smart Travel City Discovery Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-
-    html, body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background-color: #000000;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
-
-    #map {
-      width: 100%;
-      height: 100%;
-      background: #000000;
-      cursor: grab;
-    }
-    #map:active {
-      cursor: grabbing;
-    }
-
-    /* Interactive Hotel Clickable Hotspot */
-    .hotel-interactive-hotspot {
-      position: absolute;
-      transform: translate(-32px, -32px);
-      cursor: pointer;
-      pointer-events: auto;
-      display: flex;
-      align-items: center;
-      transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1);
-    }
-    .hotel-interactive-hotspot:hover {
-      transform: translate(-32px, -32px) scale(1.06);
-      z-index: 9999 !important;
-    }
-
-    /* Glowing Hover Ring on the Circular Thumbnail */
-    .hotspot-circle {
-      width: 64px;
-      height: 64px;
-      border-radius: 50%;
-      position: relative;
-    }
-    .hotspot-circle::after {
-      content: '';
-      position: absolute;
-      top: -3px;
-      left: -3px;
-      right: -3px;
-      bottom: -3px;
-      border-radius: 50%;
-      border: 2px solid transparent;
-      transition: all 0.2s ease;
-    }
-    .hotel-interactive-hotspot:hover .hotspot-circle::after {
-      border-color: #00D9FF;
-      box-shadow: 0 0 16px rgba(0, 217, 255, 0.95), 0 0 30px rgba(0, 217, 255, 0.6);
-    }
-
-    /* Hotspot Card Overlay for Clicking */
-    .hotspot-card-hitbox {
-      margin-left: 6px;
-      width: 140px;
-      height: 52px;
-      border-radius: 10px;
-      background: transparent;
-      transition: all 0.2s ease;
-    }
-    .hotel-interactive-hotspot:hover .hotspot-card-hitbox {
-      background: rgba(0, 217, 255, 0.08);
-      box-shadow: 0 0 14px rgba(0, 217, 255, 0.35);
-      border: 1px solid rgba(0, 217, 255, 0.4);
-    }
-
-    /* Central Hyderabad Charminar Pulse */
-    .hub-pulse-wrapper {
-      position: absolute;
-      width: 70px;
-      height: 70px;
-      transform: translate(-35px, -35px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      pointer-events: auto;
-    }
-    .hub-pulse-ring {
-      position: absolute;
-      width: 58px;
-      height: 58px;
-      border-radius: 50%;
-      border: 1.8px solid rgba(0, 217, 255, 0.6);
-      animation: hubPulseAnim 2.8s ease-out infinite;
-      pointer-events: none;
-    }
-    @keyframes hubPulseAnim {
-      0% { transform: scale(0.92); opacity: 0.9; }
-      100% { transform: scale(1.65); opacity: 0; }
-    }
-
-    /* Sleek Floating Zoom Controls */
-    .custom-zoom-controls {
-      position: absolute;
-      bottom: 24px;
-      left: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      z-index: 800;
-    }
-    .zoom-btn {
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      background: rgba(7, 13, 24, 0.88);
-      border: 1px solid rgba(0, 217, 255, 0.4);
-      color: #00D9FF;
-      font-size: 18px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.7);
-      transition: all 0.15s ease;
-    }
-    .zoom-btn:hover {
-      background: rgba(0, 217, 255, 0.18);
-      border-color: #00D9FF;
-      box-shadow: 0 0 14px rgba(0, 217, 255, 0.5);
-    }
+    * { box-sizing: border-box; }
+    html, body, #map { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }
+    body { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .leaflet-container { background: #050912; }
+    .leaflet-control-attribution { background: rgba(3, 8, 15, .82) !important; color: #aab5c5 !important; font-size: 9px !important; }
+    .leaflet-control-attribution a { color: #00d9ff !important; }
+    .leaflet-control-container { display: none; }
+    .hotel-div-icon { background: transparent; border: 0; }
+    .hotel-marker { display: flex; align-items: center; width: 190px; height: 60px; transform: translate(-28px, -50%); cursor: pointer; }
+    .hotel-photo-wrap { position: relative; flex: 0 0 56px; width: 56px; height: 56px; z-index: 2; }
+    .hotel-photo { display: block; width: 56px; height: 56px; object-fit: cover; border: 3px solid #00d9ff; border-radius: 50%; background: #101827; box-shadow: 0 0 8px #00d9ff, 0 0 20px rgba(0,217,255,.48); }
+    .hotel-pin-dot { position: absolute; left: 22px; bottom: -8px; width: 12px; height: 12px; border: 2px solid #b9f7ff; border-radius: 50%; background: #00d9ff; box-shadow: 0 0 12px #00d9ff; }
+    .hotel-info { width: 128px; margin-left: 5px; padding: 6px 7px; overflow: hidden; border: 1px solid rgba(0,217,255,.4); border-radius: 9px; background: rgba(3,10,20,.94); box-shadow: 0 4px 16px rgba(0,0,0,.55); color: #fff; line-height: 1.2; }
+    .hotel-name { overflow: hidden; color: #fff; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .hotel-meta { margin-top: 3px; color: #aab5c5; font-size: 9px; white-space: nowrap; }
+    .hotel-price { margin-top: 3px; color: #00d9ff; font-size: 10px; font-weight: 800; white-space: nowrap; }
+    .hotel-marker:hover { z-index: 1000 !important; transform: translate(-28px, -50%) scale(1.05); }
+    .route-line-glow { filter: drop-shadow(0 0 5px rgba(0,217,255,.75)); }
+    .route-plane { color: #6feaff; font-size: 19px; text-shadow: 0 0 8px #00d9ff, 0 0 16px #00d9ff; }
+    .map-controls { position: absolute; z-index: 1000; right: 20px; bottom: 22px; display: flex; flex-direction: column; gap: 7px; }
+    .map-control { width: 42px; height: 42px; border: 1px solid rgba(0,217,255,.65); border-radius: 11px; background: rgba(4,12,23,.94); color: #00d9ff; font-size: 21px; font-weight: 700; cursor: pointer; box-shadow: 0 0 12px rgba(0,217,255,.2); }
+    .map-control:hover { background: rgba(0,139,255,.25); }
+    @media (max-width: 700px) { .hotel-marker { transform: translate(-28px, -50%) scale(.86); transform-origin: left center; } .map-controls { right: 12px; bottom: 14px; } }
   </style>
 </head>
 <body>
-  <!-- Fullscreen Interactive Map -->
-  <div id="map"></div>
-
-  <!-- Zoom Controls -->
-  <div class="custom-zoom-controls">
-    <div class="zoom-btn" onclick="map.zoomIn()" title="Zoom In">+</div>
-    <div class="zoom-btn" onclick="map.zoomOut()" title="Zoom Out">−</div>
-    <div class="zoom-btn" onclick="resetView()" title="Recenter Hyderabad" style="font-size: 14px;">◎</div>
+  <div id="map" aria-label="Hotel discovery map"></div>
+  <div class="map-controls">
+    <button class="map-control" aria-label="Zoom in" onclick="map.zoomIn()">+</button>
+    <button class="map-control" aria-label="Zoom out" onclick="userMapZoom = true; map.zoomOut()">−</button>
+    <button class="map-control" aria-label="Recenter destination" onclick="recenter()">◎</button>
   </div>
-
   <script>
-    // -------------------------------------------------------------
-    // 1. DATA SPECIFICATION (Exact Pixel Coordinates in 849 x 595 Map)
-    // -------------------------------------------------------------
-    const MAP_WIDTH = 849;
-    const MAP_HEIGHT = 595;
+    const map = L.map('map', { zoomControl: false, attributionControl: true, zoomSnap: 0.25, worldCopyJump: true }).setView([20, 20], 2);
+    L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+    }).addTo(map);
+    L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Labels &copy; Esri'
+    }).addTo(map);
 
-    // Hotel centers calibrated directly from reference image
-    const HOTELS_DATA = [
-      {
-        id: 31,
-        name: "Taj Krishna",
-        x: 150,
-        y: 158,
-        rating: 4.8,
-        reviews: 2340,
-        price: 210,
-        travelTime: "30 min"
-      },
-      {
-        id: 1,
-        name: "Taj Falaknuma Palace",
-        x: 388,
-        y: 156,
-        rating: 5.0,
-        reviews: 1840,
-        price: 420,
-        travelTime: "20 min"
-      },
-      {
-        id: 34,
-        name: "The Westin Hyderabad",
-        x: 661,
-        y: 188,
-        rating: 4.9,
-        reviews: 2100,
-        price: 220,
-        travelTime: "35 min"
-      },
-      {
-        id: 2,
-        name: "ITC Kohenur",
-        x: 60,
-        y: 285,
-        rating: 4.9,
-        reviews: 1260,
-        price: 240,
-        travelTime: "25 min"
-      },
-      {
-        id: 3,
-        name: "Park Hyatt Hyderabad",
-        x: 686,
-        y: 318,
-        rating: 4.8,
-        reviews: 940,
-        price: 195,
-        travelTime: "22 min"
-      },
-      {
-        id: 35,
-        name: "Novotel Hyderabad",
-        x: 86,
-        y: 389,
-        rating: 4.7,
-        reviews: 2980,
-        price: 155,
-        travelTime: "28 min"
-      },
-      {
-        id: 38,
-        name: "Leela Palace",
-        x: 669,
-        y: 450,
-        rating: 4.7,
-        reviews: 1680,
-        price: 320,
-        travelTime: "25 min"
-      },
-      {
-        id: 32,
-        name: "Trident Hyderabad",
-        x: 134,
-        y: 528,
-        rating: 4.8,
-        reviews: 1820,
-        price: 185,
-        travelTime: "Express"
-      },
-      {
-        id: 39,
-        name: "Taj Deccan",
-        x: 454,
-        y: 547,
-        rating: 4.6,
-        reviews: 1320,
-        price: 280,
-        travelTime: "40 min"
-      }
-    ];
+    let center = [20, 20];
+    let destinationName = '';
+    let hotels = [];
+    let hotelMarkers = [];
+    let routeLayers = [];
+    let planeMarker = null;
+    let activeHotelId = null;
+    let planeTimer = null;
+    let globeReturnSent = false;
+    let userMapZoom = false;
 
-    const HUB_CENTER = { x: 412, y: 308 };
-
-    // -------------------------------------------------------------
-    // 2. INITIALIZE LEAFLET WITH L.CRS.Simple (Flat Pixel Coordinate System)
-    // -------------------------------------------------------------
-    const bounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
-
-    const map = L.map('map', {
-      crs: L.CRS.Simple,
-      minZoom: -1,
-      maxZoom: 2,
-      zoomSnap: 0.1,
-      zoomControl: false,
-      attributionControl: false,
-      maxBounds: [[-100, -100], [MAP_HEIGHT + 100, MAP_WIDTH + 100]]
-    });
-
-    // High-Resolution True Satellite Layer (Exact Reference Match)
-    const overlay = L.imageOverlay('hyderabad_satellite_ref.jpg', bounds).addTo(map);
-
-    function resetView() {
-      map.fitBounds(bounds);
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     }
-    resetView();
 
-    window.addEventListener('resize', () => {
-      map.invalidateSize();
-      resetView();
-    });
+    function priceLabel(hotel) {
+      if (!Number.isFinite(Number(hotel.starting_price)) || Number(hotel.starting_price) <= 0) return 'Price unavailable';
+      try { return `${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(hotel.starting_price || 0))} / night`; }
+      catch (_) { return `${Number(hotel.starting_price || 0).toFixed(0)} / night`; }
+    }
 
-    // -------------------------------------------------------------
-    // 3. CENTRAL HYDERABAD CHARMINAR HUB PULSING INTERACTIVE OVERLAY
-    // -------------------------------------------------------------
-    const hubLatLng = [MAP_HEIGHT - HUB_CENTER.y, HUB_CENTER.x];
-    const hubIcon = L.divIcon({
-      className: 'hub-pulse-div-icon',
-      html: `
-        <div class="hub-pulse-wrapper" onclick="resetView()" title="Central Hyderabad - Charminar Hub">
-          <div class="hub-pulse-ring"></div>
-        </div>
-      `,
-      iconSize: [70, 70],
-      iconAnchor: [35, 35]
-    });
-    L.marker(hubLatLng, { icon: hubIcon, zIndexOffset: 200 }).addTo(map);
-
-    // -------------------------------------------------------------
-    // 4. RENDER 9 INTERACTIVE HOTEL HOTSPOTS
-    // -------------------------------------------------------------
-    const hotelMarkers = [];
-
-    HOTELS_DATA.forEach(hotel => {
-      const latLng = [MAP_HEIGHT - hotel.y, hotel.x];
-
-      const hotspotHtml = `
-        <div class="hotel-interactive-hotspot" onclick="handleHotelSelect(${hotel.id}, '${hotel.name.replace(/'/g, "\\'")}')" title="Click to view full details for ${hotel.name}">
-          <div class="hotspot-circle"></div>
-          <div class="hotspot-card-hitbox"></div>
-        </div>
-      `;
-
-      const icon = L.divIcon({
-        className: 'hotel-hotspot-div-icon',
-        html: hotspotHtml,
-        iconSize: [210, 64],
-        iconAnchor: [32, 32]
+    function hotelIcon(hotel) {
+      const imageUrl = /^https?:\/\//i.test(hotel.exterior_image_url || '') ? hotel.exterior_image_url : '';
+      const photo = imageUrl
+        ? `<img class="hotel-photo" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(hotel.hotel_name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">`
+        : '';
+      return L.divIcon({
+        className: 'hotel-div-icon',
+        iconSize: [190, 60],
+        iconAnchor: [28, 30],
+        html: `<div class="hotel-marker" role="button" tabindex="0" onkeydown="if(event.key==='Enter')selectHotel(${Number(hotel.hotel_id)})" title="Open ${escapeHtml(hotel.hotel_name)}"><div class="hotel-photo-wrap">${photo}<div class="hotel-photo" style="${photo ? 'display:none;' : 'display:grid;place-items:center;color:#00d9ff;font-size:25px;'}">⌂</div><span class="hotel-pin-dot"></span></div><div class="hotel-info"><div class="hotel-name">${escapeHtml(hotel.hotel_name)}</div><div class="hotel-meta">${Number(hotel.star_rating) > 0 ? `★ ${Number(hotel.star_rating).toFixed(1)}` : 'Rating unavailable'} · ${Number(hotel.review_count || 0).toLocaleString()} reviews</div><div class="hotel-price">${escapeHtml(priceLabel(hotel))}</div></div></div>`
       });
+    }
 
-      const marker = L.marker(latLng, { icon: icon, zIndexOffset: 500 }).addTo(map);
-      marker.hotelData = hotel;
-      hotelMarkers.push(marker);
-    });
+    function curvedPoints(from, to, bend = 0.16) {
+      const midLat = (from[0] + to[0]) / 2;
+      const cosLat = Math.max(0.25, Math.cos(midLat * Math.PI / 180));
+      const dx = (to[1] - from[1]) * cosLat;
+      const dy = to[0] - from[0];
+      const distance = Math.hypot(dx, dy);
+      if (distance < 0.00001) return [from, to];
+      const controlLat = midLat + (-dx / distance) * distance * bend;
+      const controlLng = (from[1] + to[1]) / 2 + (dy / distance) * distance * bend / cosLat;
+      const points = [];
+      for (let i = 0; i <= 24; i++) {
+        const t = i / 24, u = 1 - t;
+        points.push([
+          u * u * from[0] + 2 * u * t * controlLat + t * t * to[0],
+          u * u * from[1] + 2 * u * t * controlLng + t * t * to[1]
+        ]);
+      }
+      return points;
+    }
 
-    // -------------------------------------------------------------
-    // 5. TWO-WAY INTEROP BRIDGE WITH FLUTTER WEB
-    // -------------------------------------------------------------
-    function handleHotelSelect(hotelId, hotelName) {
-      console.log('[Map] Hotel clicked:', hotelId, hotelName);
+    function clearLayers() {
+      hotelMarkers.forEach(layer => map.removeLayer(layer));
+      routeLayers.forEach(layer => map.removeLayer(layer));
+      if (planeMarker) map.removeLayer(planeMarker);
+      if (planeTimer) clearInterval(planeTimer);
+      hotelMarkers = [];
+      routeLayers = [];
+      planeMarker = null;
+      planeTimer = null;
+    }
 
-      const payload = JSON.stringify({
-        type: 'HOTEL_CLICKED',
-        hotelId: hotelId,
-        hotelName: hotelName
+    function renderHotels() {
+      clearLayers();
+      const located = hotels.filter(h => Number.isFinite(Number(h.latitude)) && Number.isFinite(Number(h.longitude)) && Number(h.hotel_id));
+      const points = located.map(h => [Number(h.latitude), Number(h.longitude)]);
+      if (points.length > 1) {
+        const routePoints = [];
+        points.forEach((point, index) => {
+          const next = points[(index + 1) % points.length];
+          const curve = curvedPoints(point, next, index % 2 ? -0.12 : 0.12);
+          routeLayers.push(L.polyline(curve, { color: '#00d9ff', weight: 7, opacity: .18, className: 'route-line-glow', interactive: false }).addTo(map));
+          routeLayers.push(L.polyline(curve, { color: '#22dfff', weight: 2, opacity: .78, dashArray: '5 9', lineCap: 'round', interactive: false }).addTo(map));
+          if (index === 0) routePoints.push(...curve);
+        });
+        const planeIcon = L.divIcon({ className: 'route-plane', html: '✈', iconSize: [24, 24], iconAnchor: [12, 12] });
+        planeMarker = L.marker(routePoints[0], { icon: planeIcon, interactive: false, zIndexOffset: 350 }).addTo(map);
+        let step = 0;
+        planeTimer = setInterval(() => {
+          if (routePoints.length) {
+            planeMarker.setLatLng(routePoints[step % routePoints.length]);
+            step += 1;
+          }
+        }, 70);
+      }
+
+      located.forEach(hotel => {
+        const marker = L.marker([Number(hotel.latitude), Number(hotel.longitude)], {
+          icon: hotelIcon(hotel),
+          keyboard: true,
+          zIndexOffset: 500
+        }).addTo(map);
+        marker.on('click', () => selectHotel(hotel.hotel_id));
+        marker.hotelData = hotel;
+        hotelMarkers.push(marker);
       });
+      if (points.length > 1) {
+        map.fitBounds(L.latLngBounds(points), { paddingTopLeft: [90, 70], paddingBottomRight: [210, 70], maxZoom: 12.75, animate: true });
+      }
+    }
 
+    function selectHotel(hotelId) {
+      activeHotelId = Number(hotelId);
+      const hotel = hotels.find(item => Number(item.hotel_id) === activeHotelId);
+      if (hotel) map.flyTo([Number(hotel.latitude), Number(hotel.longitude)], Math.max(map.getZoom(), 14), { duration: 0.7 });
       if (window.parent && window.parent !== window) {
-        window.parent.postMessage(payload, '*');
+        window.parent.postMessage(JSON.stringify({ type: 'HOTEL_CLICKED', hotelId: activeHotelId, hotelName: hotel?.hotel_name }), '*');
       }
-      window.postMessage(payload, '*');
     }
 
-    window.addEventListener('message', (event) => {
-      let data = event.data;
-      if (typeof data === 'string') {
-        try { data = JSON.parse(data); } catch (_) { return; }
-      }
-      if (!data) return;
+    function recenter() {
+      map.flyTo(center, destinationName ? 13 : 2, { duration: 0.8 });
+    }
 
-      if (data.type === 'FOCUS_HOTEL') {
-        const found = hotelMarkers.find(m => m.hotelData.id === data.hotelId);
-        if (found) {
-          const target = [MAP_HEIGHT - found.hotelData.y, found.hotelData.x];
-          map.setView(target, 0.8, { animate: true });
+    window.addEventListener('resize', () => map.invalidateSize());
+    map.on('wheel', () => { userMapZoom = true; });
+    map.on('touchstart', () => { userMapZoom = true; });
+    map.on('zoomend', () => {
+      if (userMapZoom && destinationName && map.getZoom() <= 8.5 && !globeReturnSent) {
+        globeReturnSent = true;
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(JSON.stringify({
+            type: 'RETURN_TO_GLOBE', latitude: center[0], longitude: center[1]
+          }), '*');
         }
+      }
+    });
+    window.addEventListener('message', event => {
+      let data = event.data;
+      if (typeof data === 'string') { try { data = JSON.parse(data); } catch (_) { return; } }
+      if (!data || typeof data !== 'object') return;
+
+      if (data.type === 'SET_DESTINATION') {
+        center = [Number(data.latitude), Number(data.longitude)];
+        destinationName = String(data.name || 'Destination');
+        globeReturnSent = false;
+        userMapZoom = false;
+        globeReturnSent = false;
+        if (Number.isFinite(center[0]) && Number.isFinite(center[1])) {
+          map.flyTo(center, 13, { animate: true, duration: 1.5 });
+          setTimeout(() => map.invalidateSize(), 350);
+        }
+      } else if (data.type === 'SET_HOTELS') {
+        hotels = Array.isArray(data.hotels) ? data.hotels : [];
+        renderHotels();
+      } else if (data.type === 'FOCUS_HOTEL') {
+        const marker = hotelMarkers.find(item => Number(item.hotelData.hotel_id) === Number(data.hotelId));
+        if (marker) map.flyTo(marker.getLatLng(), Math.max(map.getZoom(), 14), { duration: 0.7 });
       } else if (data.type === 'RECENTER') {
-        resetView();
+        recenter();
+      } else if (data.type === 'CLEAR_HOTELS') {
+        hotels = [];
+        activeHotelId = null;
+        clearLayers();
+      } else if (data.type === 'SET_BLUR') {
+        document.getElementById('map').style.filter = data.blurred ? 'blur(8px)' : 'none';
       }
     });
 
     setTimeout(() => {
-      if (window.parent) {
-        window.parent.postMessage(JSON.stringify({ type: 'MAP_READY' }), '*');
-      }
-    }, 400);
+      if (window.parent) window.parent.postMessage(JSON.stringify({ type: 'MAP_READY' }), '*');
+    }, 350);
   </script>
 </body>
 </html>

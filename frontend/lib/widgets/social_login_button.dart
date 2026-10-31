@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../config/theme.dart';
 
 enum SocialLoginType { google, apple }
@@ -12,7 +13,7 @@ class SocialLoginButton extends StatefulWidget {
     super.key,
     required this.type,
     required this.onPressed,
-    this.height = 42.0,
+    this.height = 74.0,
   });
 
   @override
@@ -41,7 +42,7 @@ class _SocialLoginButtonState extends State<SocialLoginButton> {
               color: _isHovered
                   ? const Color(0xFF181F2C)
                   : const Color(0xFF0F1420).withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(17),
               border: Border.all(
                 color: _isHovered
                     ? AppTheme.cyanAccent.withValues(alpha: 0.6)
@@ -58,28 +59,27 @@ class _SocialLoginButtonState extends State<SocialLoginButton> {
                     ]
                   : [],
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (isGoogle)
-                  _buildGoogleIcon()
-                else
-                  const Icon(
-                    Icons.apple,
-                    color: Colors.white,
-                    size: 21,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isGoogle)
+                    _buildGoogleIcon()
+                  else
+                    const Icon(Icons.apple, color: Colors.white, size: 31),
+                  const SizedBox(width: 14),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: AppTheme.textPrimaryWhite,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.3,
+                    ),
                   ),
-                const SizedBox(width: 10),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimaryWhite,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -89,11 +89,9 @@ class _SocialLoginButtonState extends State<SocialLoginButton> {
 
   Widget _buildGoogleIcon() {
     return SizedBox(
-      width: 18,
-      height: 18,
-      child: CustomPaint(
-        painter: _GoogleLogoPainter(),
-      ),
+      width: 31,
+      height: 31,
+      child: CustomPaint(painter: _GoogleLogoPainter()),
     );
   }
 }
@@ -106,10 +104,18 @@ class _GoogleLogoPainter extends CustomPainter {
     final center = Offset(w / 2, h / 2);
     final radius = w / 2;
 
-    final paintBlue = Paint()..color = const Color(0xFF4285F4)..style = PaintingStyle.fill;
-    final paintGreen = Paint()..color = const Color(0xFF34A853)..style = PaintingStyle.fill;
-    final paintYellow = Paint()..color = const Color(0xFFFBBC05)..style = PaintingStyle.fill;
-    final paintRed = Paint()..color = const Color(0xFFEA4335)..style = PaintingStyle.fill;
+    final paintBlue = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.fill;
+    final paintGreen = Paint()
+      ..color = const Color(0xFF34A853)
+      ..style = PaintingStyle.fill;
+    final paintYellow = Paint()
+      ..color = const Color(0xFFFBBC05)
+      ..style = PaintingStyle.fill;
+    final paintRed = Paint()
+      ..color = const Color(0xFFEA4335)
+      ..style = PaintingStyle.fill;
 
     // Draw the 4-color Google G mark cleanly
     final rect = Rect.fromCircle(center: center, radius: radius);
@@ -130,7 +136,12 @@ class _GoogleLogoPainter extends CustomPainter {
     canvas.drawCircle(center, radius * 0.58, innerPaint);
 
     // Center horizontal bar for 'G'
-    final barRect = Rect.fromLTRB(center.dx - 1, center.dy - radius * 0.22, center.dx + radius * 0.95, center.dy + radius * 0.22);
+    final barRect = Rect.fromLTRB(
+      center.dx - 1,
+      center.dy - radius * 0.22,
+      center.dx + radius * 0.95,
+      center.dy + radius * 0.22,
+    );
     canvas.drawRect(barRect, paintBlue);
   }
 

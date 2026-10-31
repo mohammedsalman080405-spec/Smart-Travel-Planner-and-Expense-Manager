@@ -51,6 +51,7 @@ class TripProvider extends ChangeNotifier {
     required String destination,
     required String startDate,
     required String endDate,
+    required double totalTripBudget,
     int travellerCount = 1,
   }) async {
     _isLoading = true;
@@ -63,6 +64,7 @@ class TripProvider extends ChangeNotifier {
         destination: destination,
         startDate: startDate,
         endDate: endDate,
+        totalTripBudget: totalTripBudget,
         travellerCount: travellerCount,
       );
       _trips.insert(0, trip);

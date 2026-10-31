@@ -1,5 +1,6 @@
 from datetime import datetime
 from extensions import db
+from currency import amount_in_inr
 
 class Hotel(db.Model):
     __tablename__ = 'hotels'
@@ -17,7 +18,7 @@ class Hotel(db.Model):
     review_rating = db.Column(db.Numeric(2, 1), default=4.5)
     review_count = db.Column(db.Integer, default=0)
     starting_price = db.Column(db.Numeric(10, 2), nullable=False)
-    currency = db.Column(db.String(10), default='USD')
+    currency = db.Column(db.String(10), default='INR')
     exterior_image_url = db.Column(db.Text)
     exterior_model_url = db.Column(db.Text)
     place_id = db.Column(db.String(100))
@@ -48,8 +49,8 @@ class Hotel(db.Model):
             'star_rating': float(self.star_rating) if self.star_rating is not None else 4.5,
             'review_rating': float(self.review_rating) if self.review_rating is not None else 4.5,
             'review_count': self.review_count,
-            'starting_price': float(self.starting_price) if self.starting_price is not None else 0.0,
-            'currency': self.currency,
+            'starting_price': float(amount_in_inr(self.starting_price, self.currency)),
+            'currency': 'INR',
             'exterior_image_url': self.exterior_image_url,
             'exterior_model_url': self.exterior_model_url,
             'place_id': self.place_id,

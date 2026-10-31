@@ -20,7 +20,7 @@ class Budget {
     this.shoppingBudget = 0.0,
     this.otherBudget = 0.0,
     this.totalBudget = 0.0,
-    this.currency = 'USD',
+    this.currency = 'INR',
   });
 
   factory Budget.fromJson(Map<String, dynamic> json) {
@@ -34,7 +34,7 @@ class Budget {
       shoppingBudget: (json['shopping_budget'] as num?)?.toDouble() ?? 0.0,
       otherBudget: (json['other_budget'] as num?)?.toDouble() ?? 0.0,
       totalBudget: (json['total_budget'] as num?)?.toDouble() ?? 0.0,
-      currency: json['currency'] ?? 'USD',
+      currency: json['currency'] ?? 'INR',
     );
   }
 }
@@ -83,7 +83,7 @@ class BudgetSummary {
       totalSpent: (json['total_spent'] as num?)?.toDouble() ?? 0.0,
       remainingBalance: (json['remaining_balance'] as num?)?.toDouble() ?? 0.0,
       percentageUsed: (json['percentage_used'] as num?)?.toDouble() ?? 0.0,
-      currency: json['currency'] ?? 'USD',
+      currency: json['currency'] ?? 'INR',
       categoryBudgets: catB,
       categorySpending: catS,
       budget: Budget.fromJson(json['budget'] ?? {}),

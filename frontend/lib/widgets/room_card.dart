@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../config/theme.dart';
 import '../models/room.dart';
+import '../services/currency_formatter.dart';
 
 class RoomCard extends StatelessWidget {
   final Room room;
@@ -121,7 +122,7 @@ class RoomCard extends StatelessWidget {
                       text: TextSpan(
                         children: [
                           TextSpan(
-                            text: '\$${room.pricePerNight.toStringAsFixed(0)}',
+                            text: CurrencyFormatter.format(room.pricePerNight),
                             style: const TextStyle(
                               color: AppTheme.accentCyan,
                               fontSize: 20,

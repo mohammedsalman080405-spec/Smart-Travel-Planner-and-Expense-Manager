@@ -38,7 +38,7 @@ class Booking {
     required this.numberOfNights,
     required this.pricePerNight,
     required this.totalAmount,
-    this.currency = 'USD',
+    this.currency = 'INR',
     this.bookingStatus = 'confirmed',
     this.createdAt,
   });
@@ -62,7 +62,7 @@ class Booking {
       numberOfNights: json['number_of_nights'] ?? 1,
       pricePerNight: (json['price_per_night'] as num?)?.toDouble() ?? 0.0,
       totalAmount: (json['total_amount'] as num?)?.toDouble() ?? 0.0,
-      currency: json['currency'] ?? 'USD',
+      currency: json['currency'] ?? 'INR',
       bookingStatus: json['booking_status'] ?? 'confirmed',
       createdAt: json['created_at'],
     );

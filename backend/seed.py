@@ -8,8 +8,11 @@ from models import (
     Room, RoomImage, HotelSpace, Booking, Trip,
     TripDestination, TripActivity, Budget, Expense
 )
+from currency import amount_in_inr
 
 app = create_app()
+
+COMPLETE_ROOM_MODEL = "https://cdn.3dassets.dev/assets/38818/v1/model.glb"
 
 # Reliable, publicly hosted GLB models for 3D exploration
 GLB_ROOM_MODELS = [
@@ -506,8 +509,8 @@ def seed_database():
                     star_rating=h_data["star_rating"],
                     review_rating=h_data["review_rating"],
                     review_count=h_data["review_count"],
-                    starting_price=h_data["starting_price"],
-                    currency=h_data["currency"],
+                    starting_price=amount_in_inr(h_data["starting_price"], h_data.get("currency", "USD")),
+                    currency="INR",
                     exterior_image_url=h_data["exterior_image_url"],
                     exterior_model_url=GLB_ROOM_MODELS[0],
                     data_source="database",
@@ -555,7 +558,7 @@ def seed_database():
                         "maximum_occupancy": 2,
                         "amenities": json.dumps(["King Bed", "Rain Shower", "Smart 65\" 4K TV", "Nespresso Bar", "Complimentary High-Speed Wi-Fi", "Walk-in Wardrobe"]),
                         "image_url": "https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=1200&q=80",
-                        "model_url": GLB_ROOM_MODELS[0] # Interactive 3D GLB model
+                        "model_url": COMPLETE_ROOM_MODEL
                     },
                     {
                         "room_name": "Executive Horizon Suite",
@@ -567,7 +570,7 @@ def seed_database():
                         "maximum_occupancy": 3,
                         "amenities": json.dumps(["Super King Bed", "Deep Soaking Jacuzzi", "Executive Club Access", "Private Balcony", "Soundproof Work Desk", "Wine Chiller"]),
                         "image_url": "https://images.unsplash.com/photo-1591088398332-8a7791972843?auto=format&fit=crop&w=1200&q=80",
-                        "model_url": GLB_ROOM_MODELS[1]
+                        "model_url": COMPLETE_ROOM_MODEL
                     },
                     {
                         "room_name": "Royal Presidential Villa",
@@ -579,7 +582,7 @@ def seed_database():
                         "maximum_occupancy": 5,
                         "amenities": json.dumps(["Private Plunge Pool", "24/7 Butler Service", "Private Dining Hall", "Bespoke Bar", "Steam Room", "Bang & Olufsen Audio"]),
                         "image_url": "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1200&q=80",
-                        "model_url": GLB_ROOM_MODELS[2]
+                        "model_url": COMPLETE_ROOM_MODEL
                     }
                 ]
 
@@ -658,7 +661,7 @@ def seed_database():
                         description=sp_spec["description"],
                         capacity=sp_spec["capacity"],
                         size=sp_spec["size"],
-                        price=sp_spec["price"],
+                        price=amount_in_inr(sp_spec["price"], "USD"),
                         currency=hotel.currency,
                         opening_hours=sp_spec["opening_hours"],
                         amenities=sp_spec["amenities"],
@@ -715,13 +718,13 @@ def seed_database():
             # Add Trip Budget
             budget = Budget(
                 trip_id=trip.trip_id,
-                accommodation_budget=2100.00,
-                transport_budget=450.00,
-                food_budget=600.00,
-                activities_budget=350.00,
-                shopping_budget=500.00,
-                other_budget=200.00,
-                currency="USD"
+                accommodation_budget=amount_in_inr(2100.00, "USD"),
+                transport_budget=amount_in_inr(450.00, "USD"),
+                food_budget=amount_in_inr(600.00, "USD"),
+                activities_budget=amount_in_inr(350.00, "USD"),
+                shopping_budget=amount_in_inr(500.00, "USD"),
+                other_budget=amount_in_inr(200.00, "USD"),
+                currency="INR"
             )
             budget.calculate_total()
             db.session.add(budget)
@@ -737,8 +740,8 @@ def seed_database():
                     trip_id=trip.trip_id,
                     user_id=demo_user.user_id,
                     category=cat,
-                    amount=amt,
-                    currency="USD",
+                    amount=amount_in_inr(amt, "USD"),
+                    currency="INR",
                     expense_date=exp_d,
                     description=desc
                 )
@@ -759,7 +762,7 @@ def seed_database():
                 number_of_nights=nights,
                 price_per_night=price_night,
                 total_amount=total_amt,
-                currency="USD",
+                currency="INR",
                 booking_status="confirmed"
             )
             db.session.add(booking)

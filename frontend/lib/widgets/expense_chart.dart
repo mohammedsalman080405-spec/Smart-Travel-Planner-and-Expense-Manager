@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../config/theme.dart';
+import '../services/currency_formatter.dart';
 
 class ExpenseChart extends StatefulWidget {
   final Map<String, double> categorySpending;
@@ -11,7 +12,7 @@ class ExpenseChart extends StatefulWidget {
     super.key,
     required this.categorySpending,
     required this.categoryBudgets,
-    this.currency = 'USD',
+    this.currency = 'INR',
   });
 
   @override
@@ -125,7 +126,7 @@ class _ExpenseChartState extends State<ExpenseChart> {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '${e.key}: \$${e.value.toStringAsFixed(0)}',
+                  '${e.key}: ${CurrencyFormatter.format(e.value)}',
                   style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
                 ),
               ],

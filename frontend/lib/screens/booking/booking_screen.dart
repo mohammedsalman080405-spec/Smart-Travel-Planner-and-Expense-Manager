@@ -7,6 +7,7 @@ import '../../models/hotel.dart';
 import '../../models/room.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/booking_provider.dart';
+import '../../services/currency_formatter.dart';
 import '../../services/hotel_service.dart';
 import '../../widgets/error_widget.dart';
 import '../../widgets/loading_widget.dart';
@@ -444,8 +445,8 @@ class _BookingScreenState extends State<BookingScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('\$${room.pricePerNight.toStringAsFixed(0)} × $_nights nights', style: const TextStyle(color: Colors.white70, fontSize: 14)),
-                            Text('\$${subtotal.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+                            Text('${CurrencyFormatter.format(room.pricePerNight)} × $_nights nights', style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                            Text(CurrencyFormatter.format(subtotal), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
                           ],
                         ),
                         const SizedBox(height: 10),
@@ -453,7 +454,7 @@ class _BookingScreenState extends State<BookingScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text('Configured Taxes & Fees (12%)', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
-                            Text('\$${taxes.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                            Text(CurrencyFormatter.format(taxes), style: const TextStyle(color: Colors.white70, fontSize: 13)),
                           ],
                         ),
                         const Padding(
@@ -465,7 +466,7 @@ class _BookingScreenState extends State<BookingScreen> {
                           children: [
                             const Text('Total Accommodation Cost', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                             Text(
-                              '\$${total.toStringAsFixed(2)} ${hotel.currency}',
+                              CurrencyFormatter.format(total),
                               style: const TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.bold, fontSize: 22),
                             ),
                           ],

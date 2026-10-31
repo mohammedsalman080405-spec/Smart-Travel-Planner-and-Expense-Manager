@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../config/theme.dart';
 
 class LoginInputField extends StatefulWidget {
@@ -74,13 +75,13 @@ class _LoginInputFieldState extends State<LoginInputField> {
               height: widget.height,
               decoration: BoxDecoration(
                 color: const Color(0xFF0A0F19).withValues(alpha: 0.90),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(17),
                 border: Border.all(
                   color: hasError
                       ? const Color(0xFFFF4D4D)
                       : _isFocused
-                          ? AppTheme.cyanAccent
-                          : const Color(0xFF222D3E),
+                      ? AppTheme.cyanAccent
+                      : const Color(0xFF222D3E),
                   width: _isFocused ? 1.4 : 1.0,
                 ),
                 boxShadow: _isFocused
@@ -97,14 +98,14 @@ class _LoginInputFieldState extends State<LoginInputField> {
                 children: [
                   // Centered Prefix Icon
                   SizedBox(
-                    width: 40,
+                    width: 58,
                     height: widget.height,
                     child: Icon(
                       widget.prefixIcon,
                       color: _isFocused
                           ? AppTheme.cyanAccent
                           : const Color(0xFF7A8B9E),
-                      size: 18,
+                      size: 27,
                     ),
                   ),
 
@@ -124,7 +125,7 @@ class _LoginInputFieldState extends State<LoginInputField> {
                       },
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 13.5,
+                        fontSize: 20,
                         fontWeight: FontWeight.w500,
                       ),
                       cursorColor: AppTheme.cyanAccent,
@@ -132,12 +133,14 @@ class _LoginInputFieldState extends State<LoginInputField> {
                         hintText: widget.hintText,
                         hintStyle: TextStyle(
                           color: const Color(0xFF758597).withValues(alpha: 0.9),
-                          fontSize: 13.0,
+                          fontSize: 18,
                           fontWeight: FontWeight.w400,
                         ),
                         border: InputBorder.none,
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                        ),
                       ),
                     ),
                   ),
@@ -145,7 +148,7 @@ class _LoginInputFieldState extends State<LoginInputField> {
                   // Password Visibility Toggle Icon (if applicable)
                   if (widget.isPassword)
                     SizedBox(
-                      width: 40,
+                      width: 54,
                       height: widget.height,
                       child: IconButton(
                         icon: Icon(
@@ -155,7 +158,7 @@ class _LoginInputFieldState extends State<LoginInputField> {
                           color: _isFocused
                               ? AppTheme.cyanAccent
                               : const Color(0xFF7A8B9E),
-                          size: 18,
+                          size: 26,
                         ),
                         splashRadius: 16,
                         onPressed: () {

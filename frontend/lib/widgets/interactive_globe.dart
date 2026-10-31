@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:provider/provider.dart';
+
 import '../config/theme.dart';
 import '../models/hotel.dart';
 import '../providers/globe_provider.dart';
@@ -14,6 +15,8 @@ class InteractiveGlobe extends StatefulWidget {
   final Hotel? selectedHotel;
   final Function(Hotel hotel)? onHotelSelected;
   final bool isBlurred;
+  final VoidCallback? onOpenCityMap;
+  final VoidCallback? onReturnToGlobal;
 
   const InteractiveGlobe({
     super.key,
@@ -21,6 +24,8 @@ class InteractiveGlobe extends StatefulWidget {
     this.selectedHotel,
     this.onHotelSelected,
     this.isBlurred = false,
+    this.onOpenCityMap,
+    this.onReturnToGlobal,
   });
 
   @override
@@ -29,6 +34,10 @@ class InteractiveGlobe extends StatefulWidget {
 
 class _InteractiveGlobeState extends State<InteractiveGlobe> {
   bool _isGlobeReady = false;
+  bool? _lastAutoRotate;
+  double? _lastLatitude;
+  double? _lastLongitude;
+  double? _lastCameraDistance;
   void Function(Map<String, dynamic> msg)? _globeSender;
 
   void _onSenderReady(void Function(Map<String, dynamic> msg) sender) {
@@ -48,13 +57,19 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
     } else if (type == 'HOTEL_CLICKED') {
       final hotelId = msg['hotelId'];
       if (hotelId != null) {
-        _onHotelClickedFromGlobe(hotelId is int ? hotelId : int.tryParse(hotelId.toString()));
+        _onHotelClickedFromGlobe(
+          hotelId is int ? hotelId : int.tryParse(hotelId.toString()),
+        );
       }
     } else if (type == 'SEARCH_DESTINATION') {
       final q = msg['query'];
       if (q != null && q.toString().trim().isNotEmpty) {
         _searchDestination(q.toString().trim());
       }
+    } else if (type == 'OPEN_CITY_MAP') {
+      widget.onOpenCityMap?.call();
+    } else if (type == 'RETURN_TO_GLOBAL') {
+      widget.onReturnToGlobal?.call();
     }
   }
 
@@ -94,14 +109,16 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
         widget.onHotelSelected!(matched);
       }
     } else {
-      HotelService.getHotelDetails(hotelId).then((fetched) {
-        if (mounted) {
-          hotelProvider.selectHotel(fetched);
-          if (widget.onHotelSelected != null) {
-            widget.onHotelSelected!(fetched);
-          }
-        }
-      }).catchError((_) {});
+      HotelService.getHotelDetails(hotelId)
+          .then((fetched) {
+            if (mounted) {
+              hotelProvider.selectHotel(fetched);
+              if (widget.onHotelSelected != null) {
+                widget.onHotelSelected!(fetched);
+              }
+            }
+          })
+          .catchError((_) {});
     }
   }
 
@@ -118,13 +135,23 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
       'type': 'FOCUS_COORDINATES',
       'latitude': globeProvider.targetLatitude,
       'longitude': globeProvider.targetLongitude,
-      'zoom': globeProvider.zoomLevel > 1.2 ? 8.8 : 15.8,
+      'zoom': globeProvider.targetCameraDistance,
       'animate': false,
     });
+    _sendMessageToGlobe({
+      'type': 'TOGGLE_AUTO_ROTATE',
+      'enabled': globeProvider.isAutoRotating,
+    });
+    _lastAutoRotate = globeProvider.isAutoRotating;
+    _lastLatitude = globeProvider.targetLatitude;
+    _lastLongitude = globeProvider.targetLongitude;
+    _lastCameraDistance = globeProvider.targetCameraDistance;
 
     // 2. Send Hotels list
-    if (hotelProvider.hotels.isNotEmpty) {
+    if (hotelProvider.currentDestination.isNotEmpty) {
       _sendHotelsToGlobe(hotelProvider.hotels);
+    } else {
+      _sendMessageToGlobe({'type': 'CLEAR_HOTELS'});
     }
 
     // 3. Send Selected Hotel
@@ -137,23 +164,32 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
   }
 
   void _sendHotelsToGlobe(List<Hotel> hotels) {
-    final hotelData = hotels.map((h) => {
-      'hotel_id': h.hotelId,
-      'hotel_name': h.hotelName,
-      'latitude': h.latitude,
-      'longitude': h.longitude,
-      'starting_price': h.startingPrice,
-      'star_rating': h.starRating,
-      'review_rating': h.reviewRating,
-      'address': h.address,
-      'city': h.city,
-      'country': h.country,
-      'exterior_image_url': h.exteriorImageUrl,
-      'is_demo': h.isDemo,
-    }).toList();
+    final hotelData = hotels
+        .map(
+          (h) => {
+            'hotel_id': h.hotelId,
+            'hotel_name': h.hotelName,
+            'latitude': h.latitude,
+            'longitude': h.longitude,
+            'starting_price': h.startingPrice,
+            'star_rating': h.starRating,
+            'review_rating': h.reviewRating,
+            'review_count': h.reviewCount,
+            'address': h.address,
+            'city': h.city,
+            'country': h.country,
+            'exterior_image_url': h.exteriorImageUrl,
+            'is_demo': h.isDemo,
+            'currency': h.currency,
+          },
+        )
+        .toList();
 
+    final globeProvider = context.read<GlobeProvider>();
     _sendMessageToGlobe({
       'type': 'SET_HOTELS',
+      'destination_latitude': globeProvider.targetLatitude,
+      'destination_longitude': globeProvider.targetLongitude,
       'hotels': hotelData,
     });
   }
@@ -164,15 +200,13 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
 
     // Update blur state on Three.js globe iframe
     if (widget.isBlurred != oldWidget.isBlurred) {
-      _sendMessageToGlobe({
-        'type': 'SET_BLUR',
-        'blurred': widget.isBlurred,
-      });
+      _sendMessageToGlobe({'type': 'SET_BLUR', 'blurred': widget.isBlurred});
     }
 
     // Update hotels on globe if changed
     if (widget.hotels != oldWidget.hotels) {
-      if (widget.hotels.isEmpty) {
+      final hotelProvider = context.read<HotelProvider>();
+      if (widget.hotels.isEmpty && hotelProvider.currentDestination.isEmpty) {
         _sendMessageToGlobe({'type': 'CLEAR_HOTELS'});
       } else {
         _sendHotelsToGlobe(widget.hotels);
@@ -196,15 +230,29 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
     final hotelProvider = context.watch<HotelProvider>();
 
     // Sync coordinate changes to Three.js globe
-    if (_isGlobeReady && globeProvider.isAnimatingToTarget) {
+    final focusChanged =
+        _lastLatitude != globeProvider.targetLatitude ||
+        _lastLongitude != globeProvider.targetLongitude ||
+        _lastCameraDistance != globeProvider.targetCameraDistance;
+    if (_isGlobeReady && (globeProvider.isAnimatingToTarget || focusChanged)) {
       _sendMessageToGlobe({
         'type': 'FOCUS_COORDINATES',
         'latitude': globeProvider.targetLatitude,
         'longitude': globeProvider.targetLongitude,
-        'zoom': 7.6,
-        'animate': true,
+        'zoom': globeProvider.targetCameraDistance,
+        'animate': globeProvider.isAnimatingToTarget,
       });
-      globeProvider.stopAnimation();
+      _lastLatitude = globeProvider.targetLatitude;
+      _lastLongitude = globeProvider.targetLongitude;
+      _lastCameraDistance = globeProvider.targetCameraDistance;
+      if (globeProvider.isAnimatingToTarget) globeProvider.stopAnimation();
+    }
+    if (_isGlobeReady && _lastAutoRotate != globeProvider.isAutoRotating) {
+      _sendMessageToGlobe({
+        'type': 'TOGGLE_AUTO_ROTATE',
+        'enabled': globeProvider.isAutoRotating,
+      });
+      _lastAutoRotate = globeProvider.isAutoRotating;
     }
 
     return Stack(
@@ -230,7 +278,10 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: AppTheme.borderNavy),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 14),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 14,
+                  ),
                 ],
               ),
               child: Row(
@@ -241,34 +292,38 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
                     tooltip: 'Zoom In',
                     onPressed: () {
                       _sendMessageToGlobe({
-                        'type': 'FOCUS_COORDINATES',
-                        'latitude': globeProvider.targetLatitude,
-                        'longitude': globeProvider.targetLongitude,
-                        'zoom': 7.6,
-                        'animate': true,
+                        'type': 'ZOOM_STEP',
+                        'direction': 'in',
                       });
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.remove, color: Colors.white, size: 20),
+                    icon: const Icon(
+                      Icons.remove,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                     tooltip: 'Zoom Out',
                     onPressed: () {
                       _sendMessageToGlobe({
-                        'type': 'FOCUS_COORDINATES',
-                        'latitude': globeProvider.targetLatitude,
-                        'longitude': globeProvider.targetLongitude,
-                        'zoom': 15.8,
-                        'animate': true,
+                        'type': 'ZOOM_STEP',
+                        'direction': 'out',
                       });
                     },
                   ),
                   IconButton(
                     icon: Icon(
-                      globeProvider.isAutoRotating ? Icons.pause : Icons.play_arrow,
-                      color: globeProvider.isAutoRotating ? AppTheme.accentCyan : Colors.white70,
+                      globeProvider.isAutoRotating
+                          ? Icons.pause
+                          : Icons.play_arrow,
+                      color: globeProvider.isAutoRotating
+                          ? AppTheme.accentCyan
+                          : Colors.white70,
                       size: 20,
                     ),
-                    tooltip: globeProvider.isAutoRotating ? 'Pause Rotation' : 'Auto Rotate',
+                    tooltip: globeProvider.isAutoRotating
+                        ? 'Pause Rotation'
+                        : 'Auto Rotate',
                     onPressed: () {
                       final next = !globeProvider.isAutoRotating;
                       globeProvider.toggleAutoRotate(next);
@@ -279,13 +334,21 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.refresh, color: Colors.white70, size: 20),
+                    icon: const Icon(
+                      Icons.refresh,
+                      color: Colors.white70,
+                      size: 20,
+                    ),
                     tooltip: 'Reset Global View',
                     onPressed: () {
-                      globeProvider.resetView();
-                      hotelProvider.clearSearch();
-                      _sendMessageToGlobe({'type': 'RESET_VIEW'});
-                      _sendMessageToGlobe({'type': 'CLEAR_HOTELS'});
+                      if (widget.onReturnToGlobal != null) {
+                        widget.onReturnToGlobal!();
+                      } else {
+                        globeProvider.resetView();
+                        hotelProvider.clearSearch();
+                        _sendMessageToGlobe({'type': 'RESET_VIEW'});
+                        _sendMessageToGlobe({'type': 'CLEAR_HOTELS'});
+                      }
                     },
                   ),
                 ],

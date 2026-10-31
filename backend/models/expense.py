@@ -1,5 +1,6 @@
 from datetime import datetime
 from extensions import db
+from currency import amount_in_inr
 
 class Expense(db.Model):
     __tablename__ = 'expenses'
@@ -9,7 +10,7 @@ class Expense(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
     category = db.Column(db.String(50), nullable=False)  # Accommodation, Food, Transportation, Shopping, Entertainment, Activities, Other
     amount = db.Column(db.Numeric(10, 2), nullable=False)
-    currency = db.Column(db.String(10), default='USD')
+    currency = db.Column(db.String(10), default='INR')
     expense_date = db.Column(db.Date, nullable=False)
     description = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -25,8 +26,8 @@ class Expense(db.Model):
             'trip_id': self.trip_id,
             'user_id': self.user_id,
             'category': self.category,
-            'amount': float(self.amount) if self.amount is not None else 0.0,
-            'currency': self.currency,
+            'amount': float(amount_in_inr(self.amount, self.currency)),
+            'currency': 'INR',
             'expense_date': self.expense_date.isoformat() if self.expense_date else None,
             'description': self.description,
             'created_at': self.created_at.isoformat() if self.created_at else None,

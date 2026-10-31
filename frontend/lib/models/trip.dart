@@ -54,6 +54,8 @@ class Trip {
   final String startDate;
   final String endDate;
   final int travellerCount;
+  final double totalTripBudget;
+  final String currency;
   final String status;
   final List<TripActivity> activities;
   final List<Booking> bookings;
@@ -68,6 +70,8 @@ class Trip {
     required this.startDate,
     required this.endDate,
     this.travellerCount = 1,
+    this.totalTripBudget = 0,
+    this.currency = 'INR',
     this.status = 'planned',
     this.activities = const [],
     this.bookings = const [],
@@ -116,6 +120,8 @@ class Trip {
       startDate: json['start_date'] ?? '',
       endDate: json['end_date'] ?? '',
       travellerCount: json['traveller_count'] ?? 1,
+      totalTripBudget: (json['total_trip_budget'] as num?)?.toDouble() ?? 0,
+      currency: json['currency'] ?? 'INR',
       status: json['status'] ?? 'planned',
       activities: acts,
       bookings: bks,

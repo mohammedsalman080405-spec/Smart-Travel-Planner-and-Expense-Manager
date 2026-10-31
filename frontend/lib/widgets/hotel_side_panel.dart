@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config/theme.dart';
 import '../models/hotel.dart';
 import '../providers/hotel_provider.dart';
+import '../services/currency_formatter.dart';
 
 class HotelSidePanel extends StatelessWidget {
   final Hotel hotel;
@@ -429,11 +430,11 @@ class HotelSidePanel extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '\$${hotel.startingPrice.toStringAsFixed(0)} × ${hotelProvider.estimatedNights} nights',
+                            '${CurrencyFormatter.format(hotel.startingPrice)} × ${hotelProvider.estimatedNights} nights',
                             style: const TextStyle(color: Colors.white70, fontSize: 13),
                           ),
                           Text(
-                            '\$${hotelProvider.estimatedAccommodationCost.toStringAsFixed(2)}',
+                            CurrencyFormatter.format(hotelProvider.estimatedAccommodationCost),
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
                           ),
                         ],
@@ -447,7 +448,7 @@ class HotelSidePanel extends StatelessWidget {
                             style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
                           ),
                           Text(
-                            '\$${hotelProvider.estimatedTaxesAndFees.toStringAsFixed(2)}',
+                            CurrencyFormatter.format(hotelProvider.estimatedTaxesAndFees),
                             style: const TextStyle(color: Colors.white70, fontSize: 12),
                           ),
                         ],
@@ -464,7 +465,7 @@ class HotelSidePanel extends StatelessWidget {
                             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                           ),
                           Text(
-                            '\$${hotelProvider.estimatedTotalCost.toStringAsFixed(2)} ${hotel.currency}',
+                            CurrencyFormatter.format(hotelProvider.estimatedTotalCost),
                             style: const TextStyle(
                               color: AppTheme.accentCyan,
                               fontWeight: FontWeight.bold,

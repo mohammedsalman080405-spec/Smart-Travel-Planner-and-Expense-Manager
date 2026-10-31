@@ -30,7 +30,7 @@ def add_expense():
     amount = data.get('amount')
     expense_date = data.get('expense_date', datetime.utcnow().strftime('%Y-%m-%d'))
     description = data.get('description', '')
-    currency = data.get('currency', 'USD')
+    currency = 'INR'
 
     if not trip_id or amount is None:
         return jsonify({'error': 'trip_id and amount are required'}), 400
@@ -64,6 +64,7 @@ def update_expense(expense_id):
         expense.category = data['category']
     if 'amount' in data:
         expense.amount = float(data['amount'])
+        expense.currency = 'INR'
     if 'expense_date' in data:
         expense.expense_date = datetime.strptime(data['expense_date'], '%Y-%m-%d').date()
     if 'description' in data:

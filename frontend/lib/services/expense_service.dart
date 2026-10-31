@@ -17,7 +17,7 @@ class ExpenseService {
     required double amount,
     required String expenseDate,
     String? description,
-    String currency = 'USD',
+    String currency = 'INR',
   }) async {
     final response = await ApiService.post(
       ApiConfig.expenses,

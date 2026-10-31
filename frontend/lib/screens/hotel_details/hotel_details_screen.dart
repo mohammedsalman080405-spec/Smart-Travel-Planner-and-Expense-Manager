@@ -9,6 +9,7 @@ import '../../widgets/exterior_gallery.dart';
 import '../../widgets/hotel_space_card.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/room_card.dart';
+import '../../services/currency_formatter.dart';
 
 class HotelDetailsScreen extends StatefulWidget {
   final int hotelId;
@@ -196,7 +197,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen> with SingleTick
                                 text: TextSpan(
                                   children: [
                                     TextSpan(
-                                      text: '\$${hotel.startingPrice.toStringAsFixed(0)}',
+                                      text: CurrencyFormatter.format(hotel.startingPrice),
                                       style: const TextStyle(
                                         color: AppTheme.accentCyan,
                                         fontSize: 28,
