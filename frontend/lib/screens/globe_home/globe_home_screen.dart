@@ -241,7 +241,7 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
           // 3. Destination Search Bar (Prominent center-top when hotel tab is closed)
           if (!hotelProvider.hasOpenTabs)
             Positioned(
-              top: 96,
+              top: 88,
               left: 0,
               right: 0,
               child: Center(

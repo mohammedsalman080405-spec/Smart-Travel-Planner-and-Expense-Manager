@@ -22,10 +22,6 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
   List<Map<String, dynamic>> _suggestions = [];
   bool _showSuggestions = false;
 
-  final List<String> _popularDestinations = [
-    'Hyderabad', 'Dubai', 'Bali', 'Paris', 'Tokyo', 'Singapore', 'Mumbai', 'London', 'New York'
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -311,45 +307,6 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
               ),
             ),
 
-          // Quick destination tags
-          const SizedBox(height: 14),
-          PointerInterceptor(
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              alignment: WrapAlignment.center,
-              children: _popularDestinations.map((dest) {
-                return InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () {
-                    debugPrint('[Search] Destination pill clicked: "$dest"');
-                    _controller.text = dest;
-                    setState(() {});
-                    _handleSearch(dest);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF111E38).withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppTheme.borderNavy.withOpacity(0.6)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.near_me, color: AppTheme.accentCyan, size: 13),
-                        const SizedBox(width: 5),
-                        Text(
-                          dest,
-                          style: const TextStyle(color: AppTheme.textMuted, fontSize: 13, fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
         ],
       ),
     );
