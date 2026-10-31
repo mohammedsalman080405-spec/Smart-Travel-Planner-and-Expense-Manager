@@ -63,6 +63,19 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
     final hotelProvider = context.watch<HotelProvider>();
     final authProvider = context.watch<AuthProvider>();
     final selectedHotel = hotelProvider.selectedHotel;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    // Responsive vertical positioning:
+    // Large desktop (>= 1180): top: 48 (shifted ~48px upward from original 96)
+    // Medium / Laptop (780 to 1179): top: 58 (shifted ~38px upward, ensuring zero header overlap)
+    // Compact / Mobile (< 780): top: 68 (shifted ~28px upward, clear of mobile app bar)
+    final double searchTop;
+    if (screenWidth >= 1180) {
+      searchTop = 48.0;
+    } else if (screenWidth >= 780) {
+      searchTop = 58.0;
+    } else {
+      searchTop = 68.0;
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.darkNavy,
@@ -238,10 +251,10 @@ class _GlobeHomeScreenState extends State<GlobeHomeScreen> {
             ),
           ),
 
-          // 3. Destination Search Bar (Prominent center-top when hotel tab is closed)
+          // 3. Destination Search Bar (Shifted upward, prominent center-top when hotel tab is closed)
           if (!hotelProvider.hasOpenTabs)
             Positioned(
-              top: 88,
+              top: searchTop,
               left: 0,
               right: 0,
               child: Center(
