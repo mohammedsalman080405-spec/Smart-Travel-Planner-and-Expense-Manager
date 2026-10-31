@@ -53,7 +53,7 @@ class _WebGlobeWidgetState extends State<_WebGlobeWidget> {
         ..style.border = 'none'
         ..style.width = '100%'
         ..style.height = '100%'
-        ..style.backgroundColor = '#080E1E'
+        ..style.backgroundColor = '#000000'
         ..allow = 'accelerometer; gyroscope';
 
       _iframeElement = iframe;

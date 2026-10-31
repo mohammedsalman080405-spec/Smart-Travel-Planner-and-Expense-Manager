@@ -21,7 +21,7 @@
   let isAnimatingTarget = false;
   let targetRotationY = 0;
   let targetRotationX = 0;
-  let targetCameraDistance = 13.0;
+  let targetCameraDistance = 15.8;
 
   const container = document.getElementById('globe-container');
   const tooltip = document.getElementById('hotel-tooltip');
@@ -29,10 +29,28 @@
   const tooltipSub = document.getElementById('tooltip-sub');
   const loadingOverlay = document.getElementById('loading-overlay');
 
-  // Offset variables to shift the Earth towards the right and downwards
-  // Keeping it visually centered in the main content area away from the left sidebar
-  let globeOffsetX = (window.innerWidth > 800) ? 1.9 : 0.0;
-  let globeOffsetY = (window.innerWidth > 800) ? -1.25 : -0.5;
+  // Dynamic responsive view offset calculation:
+  // Shifts the projected 3D Earth rightwards and downwards
+  // Exactly matching the latest reference image (Earth center at x=565, y=385 on a 1024x656 screen)
+  function updateCameraViewOffset() {
+    if (!container || !camera) return;
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    const isDesktop = w >= 780;
+
+    if (isDesktop) {
+      // In 1024x656 reference image:
+      // Earth center is shifted +53px right from screen center 512px
+      // Earth center is shifted +57px down from screen center 328px
+      const deltaX = Math.round(53.0 * (w / 1024.0));
+      const deltaY = Math.round(57.0 * (h / 656.0));
+      camera.setViewOffset(w, h, -deltaX, -deltaY, w, h);
+    } else {
+      const deltaY = Math.round(24.0 * (h / 656.0));
+      camera.setViewOffset(w, h, 0, -deltaY, w, h);
+    }
+    camera.updateProjectionMatrix();
+  }
 
   function init() {
     console.log('[EarthGlobe] Initializing Realistic 3D Earth Scene on Pure Black...');
@@ -47,7 +65,8 @@
       0.1,
       1000
     );
-    camera.position.set(globeOffsetX, globeOffsetY, 13.0);
+    updateCameraViewOffset();
+    camera.position.set(0, 0, 15.8);
 
     // 2. Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
@@ -58,23 +77,23 @@
     container.appendChild(renderer.domElement);
     renderer.domElement.id = 'globe-canvas';
 
-    // 3. OrbitControls centered around the shifted Earth position
+    // 3. OrbitControls centered around the Earth
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.rotateSpeed = 0.6;
     controls.zoomSpeed = 0.8;
     controls.minDistance = 6.8;
-    controls.maxDistance = 22.0;
+    controls.maxDistance = 24.0;
     controls.enablePan = false;
-    controls.target.set(globeOffsetX, globeOffsetY, 0);
+    controls.target.set(0, 0, 0);
 
     controls.addEventListener('start', onInteractionStart);
     controls.addEventListener('end', onInteractionEnd);
 
-    // 4. Earth Group (holds Earth, clouds, and markers shifted right & down)
+    // 4. Earth Group (holds Earth, clouds, and markers)
     earthGroup = new THREE.Group();
-    earthGroup.position.set(globeOffsetX, globeOffsetY, 0);
+    earthGroup.position.set(0, 0, 0);
     scene.add(earthGroup);
 
     // 5. Lighting (Directional sunlight from top-right + subtle ambient space bounce)
@@ -219,11 +238,11 @@
     });
 
     atmosphereMesh = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
-    atmosphereMesh.position.set(globeOffsetX, globeOffsetY, 0);
+    atmosphereMesh.position.set(0, 0, 0);
     scene.add(atmosphereMesh);
 
-    // Set initial camera view showing Atlantic, Europe, and Africa matching the reference image
-    setCoordinatesFocus(20.0, -30.0, false, 13.0);
+    // Set initial camera view showing South Asia / India facing forward matching the reference image
+    setCoordinatesFocus(17.385044, 78.486671, false, 15.8);
   }
 
   // Convert Latitude & Longitude to 3D Cartesian coordinates on sphere
@@ -246,7 +265,7 @@
   }
 
   function setCoordinatesFocus(lat, lng, animate = true, zoomDistance = 8.6) {
-    console.log(`[EarthGlobe] Focusing coordinates: lat=${lat}, lng=${lng}, animate=${animate}`);
+    console.log(`[EarthGlobe] Focusing coordinates: lat=${lat}, lng=${lng}, animate=${animate}, zoom=${zoomDistance}`);
     const targets = getTargetRotation(lat, lng);
     targetRotationY = targets.rotY;
     targetRotationX = targets.rotX;
@@ -255,8 +274,8 @@
     if (!animate) {
       earthGroup.rotation.y = targetRotationY;
       earthGroup.rotation.x = targetRotationX;
-      camera.position.set(globeOffsetX, globeOffsetY, targetCameraDistance);
-      controls.target.set(globeOffsetX, globeOffsetY, 0);
+      camera.position.set(0, 0, targetCameraDistance);
+      controls.target.set(0, 0, 0);
     } else {
       isAnimatingTarget = true;
       isAutoRotating = false;
@@ -265,124 +284,228 @@
   }
 
   // Cached procedural glowing dot textures for optimal WebGL performance
-  let cyanGlowTexture = null;
-  let goldGlowTexture = null;
+  // Small, elegant cyan circular marker with a crisp white centre and subtle cyan glow
+  let cyanDotTexture = null;
+  let goldDotTexture = null;
 
-  function getCyanGlowTexture() {
-    if (cyanGlowTexture) return cyanGlowTexture;
+  function getCyanDotTexture() {
+    if (cyanDotTexture) return cyanDotTexture;
     const canvas = document.createElement('canvas');
     canvas.width = 128;
     canvas.height = 128;
     const ctx = canvas.getContext('2d');
+    const cx = 64, cy = 64;
 
-    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gradient.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
-    gradient.addColorStop(0.18, 'rgba(0, 240, 255, 0.95)');
-    gradient.addColorStop(0.45, 'rgba(0, 210, 255, 0.55)');
-    gradient.addColorStop(0.75, 'rgba(0, 160, 255, 0.18)');
-    gradient.addColorStop(1.0, 'rgba(0, 140, 255, 0.0)');
+    // 1. Soft, subtle outer cyan aura (fades smoothly to transparent)
+    const glow = ctx.createRadialGradient(cx, cy, 20, cx, cy, 62);
+    glow.addColorStop(0.0, 'rgba(0, 240, 255, 0.50)');
+    glow.addColorStop(0.35, 'rgba(0, 215, 255, 0.20)');
+    glow.addColorStop(1.0, 'rgba(0, 180, 255, 0.0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 62, 0, Math.PI * 2);
+    ctx.fill();
 
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 128, 128);
+    // 2. Intense, crisp electric-cyan ring
+    const ring = ctx.createRadialGradient(cx, cy, 11, cx, cy, 25);
+    ring.addColorStop(0.0, 'rgba(0, 248, 255, 1.0)');
+    ring.addColorStop(0.7, 'rgba(0, 220, 255, 0.95)');
+    ring.addColorStop(1.0, 'rgba(0, 185, 255, 0.6)');
+    ctx.fillStyle = ring;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 25, 0, Math.PI * 2);
+    ctx.fill();
 
-    cyanGlowTexture = new THREE.CanvasTexture(canvas);
-    return cyanGlowTexture;
+    // 3. Crisp solid pure white circular core / centre
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+    ctx.fill();
+
+    cyanDotTexture = new THREE.CanvasTexture(canvas);
+    return cyanDotTexture;
   }
 
-  function getGoldGlowTexture() {
-    if (goldGlowTexture) return goldGlowTexture;
+  function getGoldDotTexture() {
+    if (goldDotTexture) return goldDotTexture;
     const canvas = document.createElement('canvas');
     canvas.width = 128;
     canvas.height = 128;
     const ctx = canvas.getContext('2d');
+    const cx = 64, cy = 64;
 
-    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gradient.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
-    gradient.addColorStop(0.18, 'rgba(255, 215, 0, 0.95)');
-    gradient.addColorStop(0.45, 'rgba(245, 158, 11, 0.55)');
-    gradient.addColorStop(0.75, 'rgba(217, 119, 6, 0.18)');
-    gradient.addColorStop(1.0, 'rgba(180, 83, 9, 0.0)');
+    const glow = ctx.createRadialGradient(cx, cy, 20, cx, cy, 62);
+    glow.addColorStop(0.0, 'rgba(255, 215, 0, 0.55)');
+    glow.addColorStop(0.35, 'rgba(245, 158, 11, 0.22)');
+    glow.addColorStop(1.0, 'rgba(217, 119, 6, 0.0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 62, 0, Math.PI * 2);
+    ctx.fill();
 
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 128, 128);
+    const ring = ctx.createRadialGradient(cx, cy, 11, cx, cy, 25);
+    ring.addColorStop(0.0, 'rgba(255, 225, 60, 1.0)');
+    ring.addColorStop(0.7, 'rgba(250, 180, 20, 0.95)');
+    ring.addColorStop(1.0, 'rgba(230, 140, 10, 0.6)');
+    ctx.fillStyle = ring;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 25, 0, Math.PI * 2);
+    ctx.fill();
 
-    goldGlowTexture = new THREE.CanvasTexture(canvas);
-    return goldGlowTexture;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+    ctx.fill();
+
+    goldDotTexture = new THREE.CanvasTexture(canvas);
+    return goldDotTexture;
   }
 
-  // Render small, glowing circular cyan dots on the Earth surface for each hotel
-  // 1 Hotel = 1 Small Cyan Dot with Subtle Outer Glow (Exactly matches reference image)
+  // Calculate geographically accurate, distinct placements for all returned hotels
+  // Ensures every hotel has its own separate dot at its true geographic direction from destination centre
+  // with sufficient visual clearance so dots never overlap into a merged blob
+  function calculateGeographicPlacements(hotels) {
+    if (!hotels || hotels.length === 0) return [];
+    if (hotels.length === 1) {
+      return [{
+        hotel: hotels[0],
+        lat: parseFloat(hotels[0].latitude),
+        lng: parseFloat(hotels[0].longitude)
+      }];
+    }
+
+    let sumLat = 0, sumLng = 0, validCount = 0;
+    hotels.forEach(h => {
+      const lat = parseFloat(h.latitude);
+      const lng = parseFloat(h.longitude);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        sumLat += lat;
+        sumLng += lng;
+        validCount++;
+      }
+    });
+    if (validCount === 0) return [];
+
+    const cLat = sumLat / validCount;
+    const cLng = sumLng / validCount;
+    const cosLat = Math.cos(cLat * Math.PI / 180) || 1.0;
+
+    const pts = [];
+    let maxDist = 0.0001;
+
+    hotels.forEach((h, idx) => {
+      const lat = parseFloat(h.latitude);
+      const lng = parseFloat(h.longitude);
+      if (isNaN(lat) || isNaN(lng)) return;
+
+      const dLat = lat - cLat;
+      const dLng = (lng - cLng) * cosLat;
+      const dist = Math.hypot(dLat, dLng);
+      if (dist > maxDist) maxDist = dist;
+
+      pts.push({
+        hotel: h,
+        origLat: lat,
+        origLng: lng,
+        dLat: dLat,
+        dLng: dLng,
+        x: dLng,
+        y: dLat,
+        idx: idx
+      });
+    });
+
+    // Target visual spread on the globe and minimum pairwise clearance
+    // Preserves each hotel's compass bearing and relative location around the destination
+    const targetSpread = 2.6; // degrees on Earth surface
+    const minSeparation = 0.65; // degrees minimum separation between distinct dots
+
+    if (maxDist < targetSpread * 0.5) {
+      const scale = (targetSpread * 0.5) / maxDist;
+      pts.forEach(p => {
+        p.x *= scale;
+        p.y *= scale;
+      });
+    }
+
+    // Iterative repulsion so no two dots overlap into a single blob
+    for (let iter = 0; iter < 35; iter++) {
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          let dx = pts[i].x - pts[j].x;
+          let dy = pts[i].y - pts[j].y;
+          let d = Math.hypot(dx, dy);
+          if (d < minSeparation) {
+            const overlap = minSeparation - d;
+            if (d < 1e-5) {
+              const ang = (pts[i].idx * 1.618033) * Math.PI * 2;
+              dx = Math.cos(ang) * 0.02;
+              dy = Math.sin(ang) * 0.02;
+              d = Math.hypot(dx, dy);
+            }
+            const pushX = (dx / d) * (overlap * 0.5);
+            const pushY = (dy / d) * (overlap * 0.5);
+            pts[i].x += pushX;
+            pts[i].y += pushY;
+            pts[j].x -= pushX;
+            pts[j].y -= pushY;
+          }
+        }
+      }
+    }
+
+    return pts.map(p => {
+      const lat = cLat + p.y;
+      const lng = cLng + (p.x / cosLat);
+      return {
+        hotel: p.hotel,
+        lat: lat,
+        lng: lng
+      };
+    });
+  }
+
+  // Render individual hotel markers: exactly 1 dot per hotel, white center + cyan glow
   function renderHotelMarkers(hotelsList) {
-    console.log(`[EarthGlobe] Rendering ${hotelsList.length} small cyan hotel dots on globe surface...`);
+    console.log(`[EarthGlobe] Rendering ${hotelsList ? hotelsList.length : 0} individual hotel dots on globe...`);
     clearHotelMarkers();
 
     if (!hotelsList || hotelsList.length === 0) {
-      console.log('[EarthGlobe] Zero hotels provided. Globe cleared.');
+      console.log('[EarthGlobe] Zero hotels provided. Globe markers cleared.');
       return;
     }
 
-    const placedCoords = [];
+    const placements = calculateGeographicPlacements(hotelsList);
 
-    hotelsList.forEach((hotel, idx) => {
-      let lat = parseFloat(hotel.latitude);
-      let lng = parseFloat(hotel.longitude);
-
-      if (isNaN(lat) || isNaN(lng)) return;
-
-      // Check for extremely close proximity with already placed hotels (< 0.003 deg)
-      // and apply a micro visual spiderfy tangent offset so both dots remain distinct and clickable
-      let offsetLat = 0;
-      let offsetLng = 0;
-      for (let i = 0; i < placedCoords.length; i++) {
-        const dLat = Math.abs(placedCoords[i].lat - lat);
-        const dLng = Math.abs(placedCoords[i].lng - lng);
-        if (dLat < 0.0035 && dLng < 0.0035) {
-          const angle = (idx * 1.618033) * Math.PI * 2;
-          offsetLat = Math.sin(angle) * 0.004;
-          offsetLng = Math.cos(angle) * 0.004;
-          break;
-        }
-      }
-      placedCoords.push({ lat: lat, lng: lng });
-
+    placements.forEach((placement, idx) => {
+      const hotel = placement.hotel;
       const surfaceRadius = GLOBE_RADIUS + 0.025;
-      const pos = latLngToVector3(lat + offsetLat, lng + offsetLng, surfaceRadius);
+      const pos = latLngToVector3(placement.lat, placement.lng, surfaceRadius);
 
-      // Marker container attached to earthGroup so it rotates glued to Earth
       const markerGroup = new THREE.Group();
       markerGroup.position.copy(pos);
 
-      // Orient marker along the surface normal
+      // Orient marker container along the surface normal
       const normal = pos.clone().normalize();
       markerGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
 
-      // 1. Small Circular Cyan Dot (Surface Dot, Radius 0.045)
-      const dotGeometry = new THREE.SphereGeometry(0.045, 16, 16);
-      const dotMaterial = new THREE.MeshBasicMaterial({
-        color: 0x00F0FF,
-        depthTest: true,
-        depthWrite: true
-      });
-      const dotMesh = new THREE.Mesh(dotGeometry, dotMaterial);
-      markerGroup.add(dotMesh);
-
-      // 2. Subtle Outer Radial Glow Billboard Sprite (Electric Cyan Halo)
-      const glowMaterial = new THREE.SpriteMaterial({
-        map: getCyanGlowTexture(),
-        color: 0x00F0FF,
+      // 1. Small elegant cyan circular marker with a crisp white centre and subtle cyan glow
+      const spriteMaterial = new THREE.SpriteMaterial({
+        map: getCyanDotTexture(),
+        color: 0xffffff,
         transparent: true,
-        opacity: 0.88,
-        blending: THREE.AdditiveBlending,
+        opacity: 0.96,
+        blending: THREE.NormalBlending,
         depthTest: true,
         depthWrite: false
       });
-      const glowSprite = new THREE.Sprite(glowMaterial);
-      const baseScale = 0.22;
-      glowSprite.scale.set(baseScale, baseScale, 1.0);
-      markerGroup.add(glowSprite);
+      const dotSprite = new THREE.Sprite(spriteMaterial);
+      const baseScale = 0.075;
+      dotSprite.scale.set(baseScale, baseScale, 1.0);
+      markerGroup.add(dotSprite);
 
-      // 3. Invisible Hit Proxy for Smooth, Reliable Mouse Clicking
-      const hitGeometry = new THREE.SphereGeometry(0.09, 8, 8);
+      // 2. Invisible Hit Proxy for Smooth, Reliable Mouse Clicking
+      const hitGeometry = new THREE.SphereGeometry(0.065, 8, 8);
       const hitMaterial = new THREE.MeshBasicMaterial({ visible: false });
       const hitMesh = new THREE.Mesh(hitGeometry, hitMaterial);
       markerGroup.add(hitMesh);
@@ -392,20 +515,18 @@
         hotel: hotel,
         hotelId: hotel.hotel_id,
         isHotelMarker: true,
-        dotMesh: dotMesh,
-        glowSprite: glowSprite,
+        dotSprite: dotSprite,
         hitMesh: hitMesh,
-        pulsePhase: (idx * 0.75) % (Math.PI * 2),
+        pulsePhase: (idx * 0.78) % (Math.PI * 2),
         baseScale: baseScale
       };
       hitMesh.userData = markerGroup.userData;
-      dotMesh.userData = markerGroup.userData;
 
       earthGroup.add(markerGroup);
       hotelMarkers.push(markerGroup);
     });
 
-    console.log(`[EarthGlobe] Successfully rendered ${hotelMarkers.length} small cyan hotel dots.`);
+    console.log(`[EarthGlobe] Successfully rendered ${hotelMarkers.length} distinct individual hotel markers.`);
   }
 
   function clearHotelMarkers() {
@@ -422,14 +543,10 @@
     selectedMarkerId = hotelId;
     hotelMarkers.forEach((m) => {
       const isSelected = (m.userData.hotelId === hotelId);
-      if (m.userData.dotMesh) {
-        m.userData.dotMesh.material.color.setHex(isSelected ? 0xFFD700 : 0x00F0FF);
-      }
-      if (m.userData.glowSprite) {
-        m.userData.glowSprite.material.map = isSelected ? getGoldGlowTexture() : getCyanGlowTexture();
-        m.userData.glowSprite.material.color.setHex(isSelected ? 0xFBBF24 : 0x00F0FF);
-        const selScale = isSelected ? 0.32 : m.userData.baseScale;
-        m.userData.glowSprite.scale.set(selScale, selScale, 1.0);
+      if (m.userData.dotSprite) {
+        m.userData.dotSprite.material.map = isSelected ? getGoldDotTexture() : getCyanDotTexture();
+        const selScale = isSelected ? 0.095 : m.userData.baseScale;
+        m.userData.dotSprite.scale.set(selScale, selScale, 1.0);
       }
     });
   }
@@ -473,15 +590,15 @@
 
         if (hoveredMarker !== m) {
           if (hoveredMarker && hoveredMarker.userData.hotelId !== selectedMarkerId) {
-            hoveredMarker.userData.glowSprite.scale.set(
+            hoveredMarker.userData.dotSprite.scale.set(
               hoveredMarker.userData.baseScale,
               hoveredMarker.userData.baseScale,
               1.0
             );
           }
           hoveredMarker = m;
-          const hovScale = m.userData.hotelId === selectedMarkerId ? 0.36 : 0.30;
-          m.userData.glowSprite.scale.set(hovScale, hovScale, 1.0);
+          const hovScale = m.userData.hotelId === selectedMarkerId ? 0.105 : 0.092;
+          m.userData.dotSprite.scale.set(hovScale, hovScale, 1.0);
         }
         return;
       }
@@ -489,7 +606,7 @@
 
     if (hoveredMarker) {
       if (hoveredMarker.userData.hotelId !== selectedMarkerId) {
-        hoveredMarker.userData.glowSprite.scale.set(
+        hoveredMarker.userData.dotSprite.scale.set(
           hoveredMarker.userData.baseScale,
           hoveredMarker.userData.baseScale,
           1.0
@@ -597,7 +714,7 @@
         break;
 
       case 'RESET_VIEW':
-        setCoordinatesFocus(20.0, -30.0, true, 13.0);
+        setCoordinatesFocus(17.385044, 78.486671, true, 15.8);
         isAutoRotating = true;
         break;
 
@@ -621,14 +738,8 @@
   function onWindowResize() {
     if (!camera || !renderer) return;
     camera.aspect = container.clientWidth / container.clientHeight;
-    camera.updateProjectionMatrix();
+    updateCameraViewOffset();
     renderer.setSize(container.clientWidth, container.clientHeight);
-
-    globeOffsetX = (container.clientWidth > 800) ? 1.9 : 0.0;
-    globeOffsetY = (container.clientWidth > 800) ? -1.25 : -0.5;
-    if (earthGroup) earthGroup.position.set(globeOffsetX, globeOffsetY, 0);
-    if (atmosphereMesh) atmosphereMesh.position.set(globeOffsetX, globeOffsetY, 0);
-    if (controls) controls.target.set(globeOffsetX, globeOffsetY, 0);
   }
 
   // Render loop
@@ -664,9 +775,7 @@
         camera.position.z += distDiff * 0.08;
       }
 
-      camera.position.x = globeOffsetX;
-      camera.position.y = globeOffsetY;
-      controls.target.set(globeOffsetX, globeOffsetY, 0);
+      controls.target.set(0, 0, 0);
     }
     // 3. Auto-rotation when idle
     else if (isAutoRotating && Date.now() - lastUserInteraction > 2500) {
@@ -696,10 +805,10 @@
       } else {
         m.visible = true;
         // Subtle breathing pulse on the outer cyan glow when idle
-        if (m.userData.glowSprite && m !== hoveredMarker && m.userData.hotelId !== selectedMarkerId) {
-          const pulse = 1.0 + 0.08 * Math.sin(timeNow + (m.userData.pulsePhase || 0));
+        if (m.userData.dotSprite && m !== hoveredMarker && m.userData.hotelId !== selectedMarkerId) {
+          const pulse = 1.0 + 0.05 * Math.sin(timeNow + (m.userData.pulsePhase || 0));
           const s = m.userData.baseScale * pulse;
-          m.userData.glowSprite.scale.set(s, s, 1.0);
+          m.userData.dotSprite.scale.set(s, s, 1.0);
         }
       }
     });

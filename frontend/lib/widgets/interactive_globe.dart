@@ -118,7 +118,7 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
       'type': 'FOCUS_COORDINATES',
       'latitude': globeProvider.targetLatitude,
       'longitude': globeProvider.targetLongitude,
-      'zoom': globeProvider.zoomLevel > 1.2 ? 8.8 : 12.5,
+      'zoom': globeProvider.zoomLevel > 1.2 ? 8.8 : 15.8,
       'animate': false,
     });
 
@@ -201,7 +201,7 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
         'type': 'FOCUS_COORDINATES',
         'latitude': globeProvider.targetLatitude,
         'longitude': globeProvider.targetLongitude,
-        'zoom': 8.8,
+        'zoom': 7.6,
         'animate': true,
       });
       globeProvider.stopAnimation();
@@ -257,7 +257,7 @@ class _InteractiveGlobeState extends State<InteractiveGlobe> {
                         'type': 'FOCUS_COORDINATES',
                         'latitude': globeProvider.targetLatitude,
                         'longitude': globeProvider.targetLongitude,
-                        'zoom': 14.0,
+                        'zoom': 15.8,
                         'animate': true,
                       });
                     },

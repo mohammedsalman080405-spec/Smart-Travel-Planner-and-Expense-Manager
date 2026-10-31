@@ -18,6 +18,7 @@ class HotelService {
     final queryParams = <String, String>{
       'radius_km': radiusKm.toString(),
       'sort_by': sortBy,
+      'per_page': '8',
     };
     if (latitude != null && longitude != null) {
       queryParams['latitude'] = latitude.toString();

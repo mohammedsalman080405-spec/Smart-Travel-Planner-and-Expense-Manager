@@ -20,7 +20,7 @@ def search_hotels():
     rating = request.args.get('rating', type=float)
     sort_by = request.args.get('sort_by', 'distance')
     page = request.args.get('page', default=1, type=int)
-    per_page = request.args.get('per_page', default=30, type=int)
+    per_page = request.args.get('per_page', default=8, type=int)
 
     # If coordinates are missing but destination is provided, geocode destination
     lat = None
